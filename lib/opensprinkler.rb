@@ -7,6 +7,10 @@ require_relative 'opensprinkler/hardware/gpio'
 require_relative 'opensprinkler/hardware/shift_register'
 require_relative 'opensprinkler/stations/station'
 require_relative 'opensprinkler/stations/station_store'
+require_relative 'opensprinkler/scheduling/program'
+require_relative 'opensprinkler/scheduling/program_store'
+require_relative 'opensprinkler/scheduling/runtime_queue'
+require_relative 'opensprinkler/scheduling/scheduler'
 
 module OpenSprinkler
   class Error < StandardError; end
