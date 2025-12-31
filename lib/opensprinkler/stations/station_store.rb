@@ -162,6 +162,29 @@ module OpenSprinkler
         bits
       end
 
+      def sequential_bits(board)
+        bits = 0
+        8.times do |i|
+          sid = board * 8 + i
+          next if sid >= @stations.length
+
+          # Sequential if group_id is not the parallel group (255)
+          bits |= (1 << i) if @stations[sid].group_id != Constants::PARALLEL_GROUP_ID
+        end
+        bits
+      end
+
+      def activate_relay_bits(board)
+        bits = 0
+        8.times do |i|
+          sid = board * 8 + i
+          next if sid >= @stations.length
+
+          bits |= (1 << i) if @stations[sid].activate_relay
+        end
+        bits
+      end
+
       # Get all group IDs (for /jn API)
       def group_ids
         @stations.map(&:group_id)

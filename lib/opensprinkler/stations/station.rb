@@ -17,7 +17,7 @@ module OpenSprinkler
       attr_accessor :name, :type, :group_id
       attr_accessor :master1_bound, :master2_bound
       attr_accessor :ignore_sensor1, :ignore_sensor2, :ignore_rain_delay
-      attr_accessor :disabled
+      attr_accessor :disabled, :activate_relay
       attr_reader :special_data
 
       def initialize(id:, name: nil)
@@ -34,6 +34,7 @@ module OpenSprinkler
         @ignore_sensor2 = false
         @ignore_rain_delay = false
         @disabled = false
+        @activate_relay = false
       end
 
       # Station ID (0-based)
