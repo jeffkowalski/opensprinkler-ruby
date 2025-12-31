@@ -1,0 +1,27 @@
+[Unit]
+Description=OpenSprinkler Ruby Irrigation Controller
+After=network.target
+
+[Service]
+Type=simple
+User=opensprinkler
+Group=gpio
+WorkingDirectory=/opt/opensprinkler
+ExecStart=/opt/opensprinkler/bin/opensprinkler -d /var/lib/opensprinkler -p 8080 -H ospi
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+# Security hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/opensprinkler
+
+# GPIO access (required for OSPi hardware)
+SupplementaryGroups=gpio
+
+[Install]
+WantedBy=multi-user.target
