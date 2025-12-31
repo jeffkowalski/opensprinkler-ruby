@@ -91,6 +91,8 @@ module OpenSprinkler
         @station_bits.fill(0)
       end
 
+      alias_method :clear, :clear_all
+
       # Apply all station bits to hardware
       # This shifts out all bits and latches them
       # @param enabled [Boolean] If false, all outputs are off regardless of bits

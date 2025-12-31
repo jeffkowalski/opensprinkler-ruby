@@ -11,6 +11,8 @@ require_relative 'opensprinkler/scheduling/program'
 require_relative 'opensprinkler/scheduling/program_store'
 require_relative 'opensprinkler/scheduling/runtime_queue'
 require_relative 'opensprinkler/scheduling/scheduler'
+require_relative 'opensprinkler/hardware/sensors'
+require_relative 'opensprinkler/controller'
 
 module OpenSprinkler
   class Error < StandardError; end

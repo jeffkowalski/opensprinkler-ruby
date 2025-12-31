@@ -10,7 +10,8 @@ module OpenSprinkler
     class StationStore
       include Constants
 
-      attr_reader :stations, :file_path
+      attr_reader :stations
+      attr_accessor :file_path
 
       def initialize(file_path: nil, num_stations: 8)
         @file_path = file_path

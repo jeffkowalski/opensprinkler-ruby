@@ -90,6 +90,9 @@ RSpec.describe OpenSprinkler::Scheduling::Scheduler do
 
   describe '#process_queue' do
     it 'returns stations that should be running' do
+      # Set stations to parallel mode so they both run simultaneously
+      stations[0].group_id = 255  # Parallel
+      stations[2].group_id = 255  # Parallel
       current_time = Time.new(2025, 1, 6, 8, 0, 0)
 
       scheduler.manual_run(station_id: 0, duration: 300, current_time: current_time)

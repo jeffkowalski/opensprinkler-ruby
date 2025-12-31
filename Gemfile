@@ -8,8 +8,11 @@ ruby '>= 3.2.0'
 gem 'roda', '~> 3.85'
 gem 'puma', '~> 6.5'
 
-# GPIO control for Raspberry Pi
-gem 'lgpio', '~> 0.1'
+# GPIO control for Raspberry Pi (only on Pi hardware)
+# Install with: bundle install --with=pi
+group :pi do
+  gem 'lgpio', '~> 0.1'
+end
 
 # HTTP client for InfluxDB, weather, etc.
 gem 'net-http'

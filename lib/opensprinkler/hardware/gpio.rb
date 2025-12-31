@@ -124,6 +124,7 @@ module OpenSprinkler
       HIGH = 1
 
       attr_reader :pin_modes, :pin_states, :operations
+      alias_method :log, :operations
 
       def initialize
         @pin_modes = {}
@@ -151,20 +152,28 @@ module OpenSprinkler
         @pin_states[pin]
       end
 
+      alias_method :read, :digital_read
+
       def digital_write(pin, value)
         @operations << [:digital_write, pin, value]
         @pin_states[pin] = value
       end
+
+      alias_method :write, :digital_write
 
       # Test helper: set a pin's input value
       def set_input(pin, value)
         @pin_states[pin] = value
       end
 
+      alias_method :set_state, :set_input
+
       # Test helper: clear operation log
       def clear_operations
         @operations.clear
       end
+
+      alias_method :clear_log, :clear_operations
     end
 
     # Demo GPIO that prints operations to stdout

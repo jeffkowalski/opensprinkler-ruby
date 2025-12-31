@@ -122,6 +122,12 @@ module OpenSprinkler
     NUM_SEQ_GROUPS    = 4
     PARALLEL_GROUP_ID = 255
 
+    # Flat constants for commonly used sensor types
+    SENSOR_TYPE_NONE  = SensorType::NONE
+    SENSOR_TYPE_RAIN  = SensorType::RAIN
+    SENSOR_TYPE_FLOW  = SensorType::FLOW
+    SENSOR_TYPE_SOIL  = SensorType::SOIL
+
     # Log data types
     module LogData
       STATION    = 0x00
@@ -164,6 +170,14 @@ module OpenSprinkler
       # Free GPIO pins available for GPIO stations
       FREE_LIST = [5, 6, 7, 8, 9, 11, 12, 13, 16, 19, 20, 21, 23, 25, 26].freeze
     end
+
+    # Flat constants for commonly used pins
+    PIN_SR_LATCH = Pin::SR_LATCH
+    PIN_SR_DATA  = Pin::SR_DATA
+    PIN_SR_CLOCK = Pin::SR_CLOCK
+    PIN_SR_OE    = Pin::SR_OE
+    PIN_SENSOR1  = Pin::SENSOR1
+    PIN_SENSOR2  = Pin::SENSOR2
 
     # Integer options indices (matching IOPT_* enum)
     module IntOption
