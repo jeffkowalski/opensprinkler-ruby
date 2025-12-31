@@ -8,6 +8,8 @@ require_relative 'hardware/sensors'
 require_relative 'stations/station_store'
 require_relative 'scheduling/program_store'
 require_relative 'scheduling/scheduler'
+require_relative 'influxdb_client'
+require_relative 'log_store'
 
 module OpenSprinkler
   # Main controller that coordinates all OpenSprinkler components
@@ -22,7 +24,7 @@ module OpenSprinkler
     include Constants
 
     attr_reader :gpio, :shift_register, :sensors, :options, :stations
-    attr_reader :program_store, :scheduler
+    attr_reader :program_store, :scheduler, :influxdb, :log_store
 
     # Controller status
     attr_accessor :rain_delay_stop_time, :pause_state, :pause_timer
@@ -30,7 +32,7 @@ module OpenSprinkler
     attr_accessor :master1_on_adj, :master1_off_adj
     attr_accessor :master2_on_adj, :master2_off_adj
 
-    def initialize(options:, gpio: nil, data_dir: nil)
+    def initialize(options:, gpio: nil, data_dir: nil, influxdb_config: nil)
       @options = options
       @data_dir = data_dir || '/var/opensprinkler'
 
@@ -56,6 +58,11 @@ module OpenSprinkler
       # Initialize scheduler
       @scheduler = Scheduling::Scheduler.new(stations: @stations)
       @scheduler.water_percentage = @options.int[:water_percentage]
+
+      # Initialize logging
+      influxdb_path = influxdb_config || File.join(@data_dir, 'influxdb.yml')
+      @influxdb = InfluxDBClient.from_config(influxdb_path)
+      @log_store = LogStore.new(log_dir: File.join(@data_dir, 'logs'))
 
       # Controller state
       @rain_delay_stop_time = 0
@@ -86,6 +93,10 @@ module OpenSprinkler
       # Running state
       @running = false
       @running_stations = []
+      @prev_running_stations = []
+
+      # Track last run info for API
+      @last_run = [0, 0, 0, 0]  # [station, program, duration, end_time]
     end
 
     # Configure sensors from options
@@ -312,8 +323,63 @@ module OpenSprinkler
       # Handle master stations
       handle_master_stations(current_time)
 
+      # Log station state changes
+      log_station_changes(current_time)
+
       # Apply to hardware
       @shift_register.apply(enabled: !@options.int[:device_enable].zero?)
+    end
+
+    def log_station_changes(current_time)
+      # Find stations that turned on
+      turned_on = @running_stations - @prev_running_stations
+      turned_off = @prev_running_stations - @running_stations
+
+      # Log to InfluxDB
+      turned_on.each { |sid| @influxdb.log_valve(sid, 1, current_time) }
+      turned_off.each { |sid| @influxdb.log_valve(sid, 0, current_time) }
+
+      # Log completed runs to file
+      turned_off.each do |station_id|
+        # Find the queue item for this station to get program info
+        # The item may already be dequeued, so we track last run
+        log_completed_run(station_id, current_time)
+      end
+
+      @prev_running_stations = @running_stations.dup
+    end
+
+    def log_completed_run(station_id, current_time)
+      # Look for completed queue item info
+      item = @scheduler.queue.find { |q| q.station_id == station_id }
+
+      # Get program info from the item or use defaults
+      program_id = item&.program_id || 0
+      duration = item&.duration || 0
+
+      # Derive record type from program_id
+      record_type = case program_id
+                    when Scheduling::RuntimeQueue::PROGRAM_MANUAL
+                      LogStore::RECORD_MANUAL
+                    when Scheduling::RuntimeQueue::PROGRAM_RUN_ONCE
+                      LogStore::RECORD_RUNONCE
+                    else
+                      LogStore::RECORD_PROGRAM
+                    end
+
+      # Skip if no duration recorded
+      return if duration == 0
+
+      @log_store.log_run(
+        station_id: station_id,
+        program_id: program_id,
+        duration: duration,
+        end_time: current_time,
+        record_type: record_type
+      )
+
+      # Update last run info for API
+      @last_run = [station_id, program_id, duration, current_time.to_i]
     end
 
     def handle_master_stations(current_time)
@@ -429,14 +495,16 @@ module OpenSprinkler
     # ========== Sensor Changes ==========
 
     def handle_sensor_changes(changes, current_ts)
+      current_time = Time.at(current_ts)
+
       if changes[:sensor1_changed]
-        # TODO: Write log entry
-        # TODO: Send notification
+        active = @sensors.sensor1.active
+        @log_store.log_sensor(sensor_num: 1, active: active, timestamp: current_time)
       end
 
       if changes[:sensor2_changed]
-        # TODO: Write log entry
-        # TODO: Send notification
+        active = @sensors.sensor2.active
+        @log_store.log_sensor(sensor_num: 2, active: active, timestamp: current_time)
       end
     end
 
@@ -496,8 +564,7 @@ module OpenSprinkler
     end
 
     def last_run_info
-      # TODO: Track last run info
-      [0, 0, 0, 0]  # [station, program, duration, end_time]
+      @last_run  # [station, program, duration, end_time]
     end
   end
 end

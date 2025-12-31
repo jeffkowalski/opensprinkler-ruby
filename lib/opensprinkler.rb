@@ -12,6 +12,8 @@ require_relative 'opensprinkler/scheduling/program_store'
 require_relative 'opensprinkler/scheduling/runtime_queue'
 require_relative 'opensprinkler/scheduling/scheduler'
 require_relative 'opensprinkler/hardware/sensors'
+require_relative 'opensprinkler/influxdb_client'
+require_relative 'opensprinkler/log_store'
 require_relative 'opensprinkler/controller'
 require_relative 'opensprinkler/web/app'
 

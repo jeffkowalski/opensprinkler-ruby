@@ -409,9 +409,7 @@ module OpenSprinkler
 
       # Logs to API format
       def logs_to_api(controller, start_date, end_date)
-        # TODO: Implement log storage and retrieval
-        # For now return empty array
-        []
+        controller.log_store.get_entries(start_time: start_date, end_time: end_date)
       end
 
       # ========== Write Endpoint Handlers ==========
@@ -804,7 +802,15 @@ module OpenSprinkler
       # Handle /dl - delete logs
       # day: delete logs before this day (0 = delete all)
       def handle_delete_logs(params, controller)
-        # TODO: Implement log deletion when log storage is implemented
+        day = params['day']&.to_i || 0
+
+        if day == 0
+          controller.log_store.clear
+        else
+          before_date = Time.at(day * 86400)
+          controller.log_store.delete_before(before_date)
+        end
+
         Result::SUCCESS
       end
 
