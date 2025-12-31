@@ -2,8 +2,11 @@
 
 require_relative 'opensprinkler/version'
 require_relative 'opensprinkler/constants'
+require_relative 'opensprinkler/options'
 require_relative 'opensprinkler/hardware/gpio'
 require_relative 'opensprinkler/hardware/shift_register'
+require_relative 'opensprinkler/stations/station'
+require_relative 'opensprinkler/stations/station_store'
 
 module OpenSprinkler
   class Error < StandardError; end

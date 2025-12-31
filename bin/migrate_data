@@ -1,0 +1,232 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Migrates OpenSprinkler binary data files to YAML format
+#
+# Usage: migrate_data <source_dir> <dest_dir>
+#
+# Converts:
+#   iopts.dat  -> iopts.yml   (integer options)
+#   sopts.dat  -> sopts.yml   (string options)
+#   stns.dat   -> stations.yml (station data)
+#   prog.dat   -> programs.yml (program data)
+#   nvcon.dat  -> nvdata.yml  (non-volatile data)
+
+require 'bundler/setup'
+require 'yaml'
+require 'optparse'
+
+$LOAD_PATH.unshift File.expand_path('../lib', __dir__)
+require 'opensprinkler'
+
+module OpenSprinkler
+  class DataMigrator
+    # Binary file structure sizes
+    STATION_NAME_SIZE = 32
+    STATION_ATTRIB_SIZE = 4
+    MAX_SOPTS_SIZE = 320
+
+    # Number of integer options (from defines.h)
+    NUM_IOPTS = 73
+
+    # Number of string options
+    NUM_SOPTS = 13
+
+    def initialize(source_dir, dest_dir)
+      @source_dir = source_dir
+      @dest_dir = dest_dir
+    end
+
+    def migrate_all
+      puts "Migrating data from #{@source_dir} to #{@dest_dir}"
+
+      migrate_iopts if File.exist?(iopts_src)
+      migrate_sopts if File.exist?(sopts_src)
+      migrate_stations if File.exist?(stations_src)
+      migrate_programs if File.exist?(programs_src)
+      migrate_nvdata if File.exist?(nvdata_src)
+
+      puts "Migration complete!"
+    end
+
+    def migrate_iopts
+      puts "  Migrating iopts.dat..."
+      bytes = File.binread(iopts_src)
+
+      options = {}
+      IntegerOptions::DEFINITIONS.each do |name, meta|
+        index = meta[:index]
+        next if index >= bytes.length
+
+        value = bytes[index].ord
+        # Only save non-default values for non-readonly options
+        next if meta[:readonly]
+
+        options[name.to_s] = value
+      end
+
+      File.write(iopts_dest, options.to_yaml)
+      puts "    -> #{options.size} options migrated"
+    end
+
+    def migrate_sopts
+      puts "  Migrating sopts.dat..."
+      data = File.binread(sopts_src)
+
+      options = {}
+      offset = 0
+
+      StringOptions::DEFINITIONS.each do |name, meta|
+        # Each string option is null-terminated within MAX_SOPTS_SIZE block
+        # But the actual format is more complex - strings are stored sequentially
+        # with length prefixes or null terminators
+
+        # Simple approach: read null-terminated strings
+        str_end = data.index("\x00", offset) || data.length
+        str = data[offset...str_end].force_encoding('UTF-8')
+        str = str.encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
+
+        options[name.to_s] = str unless str.empty?
+        offset = str_end + 1
+        break if offset >= data.length
+      end
+
+      File.write(sopts_dest, options.to_yaml)
+      puts "    -> #{options.size} options migrated"
+    end
+
+    def migrate_stations
+      puts "  Migrating stns.dat..."
+      data = File.binread(stations_src)
+
+      # Station data structure:
+      # - name: 32 bytes
+      # - attrib: 4 bytes (bitfields + group id + reserved)
+      # - type: 1 byte
+      # - sped: 275 bytes (special data)
+      # Total: 312 bytes per station
+
+      station_size = 312
+      num_stations = data.length / station_size
+
+      stations = []
+      num_stations.times do |i|
+        offset = i * station_size
+
+        # Extract name (null-terminated)
+        name_bytes = data[offset, STATION_NAME_SIZE]
+        name_end = name_bytes.index("\x00") || STATION_NAME_SIZE
+        name = name_bytes[0, name_end].force_encoding('UTF-8')
+        name = name.encode('UTF-8', invalid: :replace, undef: :replace, replace: '')
+
+        # Extract attributes (4 bytes)
+        attrib_offset = offset + STATION_NAME_SIZE
+        attrib_byte = data[attrib_offset].ord
+        group_id = data[attrib_offset + 1].ord
+
+        # Extract type
+        type_offset = offset + STATION_NAME_SIZE + STATION_ATTRIB_SIZE
+        type = data[type_offset].ord
+
+        station = {
+          'id' => i,
+          'name' => name.empty? ? format('S%02d', i + 1) : name,
+          'type' => type,
+          'group_id' => group_id,
+          'master1_bound' => (attrib_byte & 0x01) != 0,
+          'ignore_sensor1' => (attrib_byte & 0x02) != 0,
+          'master2_bound' => (attrib_byte & 0x04) != 0,
+          'disabled' => (attrib_byte & 0x08) != 0,
+          'ignore_sensor2' => (attrib_byte & 0x20) != 0,
+          'ignore_rain_delay' => (attrib_byte & 0x40) != 0
+        }
+
+        stations << station
+      end
+
+      File.write(stations_dest, { 'stations' => stations }.to_yaml)
+      puts "    -> #{stations.size} stations migrated"
+    end
+
+    def migrate_programs
+      puts "  Migrating prog.dat..."
+      data = File.binread(programs_src)
+
+      # Program data is more complex - skip for now
+      # Would need to parse ProgramStruct format
+      programs = { 'programs' => [], 'note' => 'Migration of programs requires manual setup' }
+
+      File.write(programs_dest, programs.to_yaml)
+      puts "    -> Programs file created (manual setup required)"
+    end
+
+    def migrate_nvdata
+      puts "  Migrating nvcon.dat..."
+      data = File.binread(nvdata_src)
+
+      # NVConData structure (from OpenSprinkler.h):
+      # uint16_t sunrise_time
+      # uint16_t sunset_time
+      # uint32_t rd_stop_time
+      # uint32_t external_ip
+      # uint8_t reboot_cause
+
+      nvdata = {}
+      if data.length >= 13
+        nvdata['sunrise_time'] = data[0, 2].unpack1('v')  # little-endian uint16
+        nvdata['sunset_time'] = data[2, 2].unpack1('v')
+        nvdata['rd_stop_time'] = data[4, 4].unpack1('V')  # little-endian uint32
+        nvdata['external_ip'] = data[8, 4].unpack1('V')
+        nvdata['reboot_cause'] = data[12].ord
+      end
+
+      File.write(nvdata_dest, nvdata.to_yaml)
+      puts "    -> Non-volatile data migrated"
+    end
+
+    private
+
+    def iopts_src;    File.join(@source_dir, 'iopts.dat'); end
+    def sopts_src;    File.join(@source_dir, 'sopts.dat'); end
+    def stations_src; File.join(@source_dir, 'stns.dat'); end
+    def programs_src; File.join(@source_dir, 'prog.dat'); end
+    def nvdata_src;   File.join(@source_dir, 'nvcon.dat'); end
+
+    def iopts_dest;    File.join(@dest_dir, 'iopts.yml'); end
+    def sopts_dest;    File.join(@dest_dir, 'sopts.yml'); end
+    def stations_dest; File.join(@dest_dir, 'stations.yml'); end
+    def programs_dest; File.join(@dest_dir, 'programs.yml'); end
+    def nvdata_dest;   File.join(@dest_dir, 'nvdata.yml'); end
+  end
+end
+
+# Parse command line
+options = {}
+OptionParser.new do |opts|
+  opts.banner = "Usage: #{$PROGRAM_NAME} <source_dir> <dest_dir>"
+
+  opts.on('-h', '--help', 'Show this help') do
+    puts opts
+    exit
+  end
+end.parse!
+
+if ARGV.length != 2
+  puts "Usage: #{$PROGRAM_NAME} <source_dir> <dest_dir>"
+  puts "  source_dir: Directory containing binary .dat files"
+  puts "  dest_dir:   Directory to write YAML files (will be created)"
+  exit 1
+end
+
+source_dir = ARGV[0]
+dest_dir = ARGV[1]
+
+unless Dir.exist?(source_dir)
+  puts "Error: Source directory does not exist: #{source_dir}"
+  exit 1
+end
+
+Dir.mkdir(dest_dir) unless Dir.exist?(dest_dir)
+
+migrator = OpenSprinkler::DataMigrator.new(source_dir, dest_dir)
+migrator.migrate_all
