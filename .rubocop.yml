@@ -57,5 +57,3 @@ Style/FormatStringToken:
 Style/ArgumentsForwarding:
   Enabled: false
 
-# Lint
-# (Lint/MissingSuper enabled by default)
