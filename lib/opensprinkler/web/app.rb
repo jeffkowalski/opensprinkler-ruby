@@ -148,6 +148,119 @@ module OpenSprinkler
           end
         end
 
+        # ============ Write Endpoints ============
+
+        # /cv - Change controller values
+        # Parameters: rsn (reset all), en (enable), rd (rain delay hours), rbt (reboot)
+        r.get 'cv' do
+          unless verify_password.call
+            json_response.call(Result::UNAUTHORIZED)
+          else
+            result = handle_change_values(r.params, controller)
+            json_response.call(result)
+          end
+        end
+
+        # /co - Change options
+        r.get 'co' do
+          unless verify_password.call
+            json_response.call(Result::UNAUTHORIZED)
+          else
+            result = handle_change_options(r.params, options)
+            json_response.call(result)
+          end
+        end
+
+        # /cp - Change program (create/update)
+        r.get 'cp' do
+          unless verify_password.call
+            json_response.call(Result::UNAUTHORIZED)
+          else
+            result = handle_change_program(r.params, controller)
+            json_response.call(result)
+          end
+        end
+
+        # /dp - Delete program
+        r.get 'dp' do
+          unless verify_password.call
+            json_response.call(Result::UNAUTHORIZED)
+          else
+            result = handle_delete_program(r.params, controller)
+            json_response.call(result)
+          end
+        end
+
+        # /up - Move program up
+        r.get 'up' do
+          unless verify_password.call
+            json_response.call(Result::UNAUTHORIZED)
+          else
+            result = handle_move_program_up(r.params, controller)
+            json_response.call(result)
+          end
+        end
+
+        # /mp - Move program (reorder)
+        r.get 'mp' do
+          unless verify_password.call
+            json_response.call(Result::UNAUTHORIZED)
+          else
+            result = handle_move_program(r.params, controller)
+            json_response.call(result)
+          end
+        end
+
+        # /cs - Change station attributes
+        r.get 'cs' do
+          unless verify_password.call
+            json_response.call(Result::UNAUTHORIZED)
+          else
+            result = handle_change_stations(r.params, controller)
+            json_response.call(result)
+          end
+        end
+
+        # /cm - Manual control (turn station on/off)
+        r.get 'cm' do
+          unless verify_password.call
+            json_response.call(Result::UNAUTHORIZED)
+          else
+            result = handle_manual_control(r.params, controller)
+            json_response.call(result)
+          end
+        end
+
+        # /cr - Run once program
+        r.get 'cr' do
+          unless verify_password.call
+            json_response.call(Result::UNAUTHORIZED)
+          else
+            result = handle_run_once(r.params, controller)
+            json_response.call(result)
+          end
+        end
+
+        # /pq - Pause/resume queue
+        r.get 'pq' do
+          unless verify_password.call
+            json_response.call(Result::UNAUTHORIZED)
+          else
+            result = handle_pause_queue(r.params, controller)
+            json_response.call(result)
+          end
+        end
+
+        # /dl - Delete logs
+        r.get 'dl' do
+          unless verify_password.call
+            json_response.call(Result::UNAUTHORIZED)
+          else
+            result = handle_delete_logs(r.params, controller)
+            json_response.call(result)
+          end
+        end
+
         # 404 for unknown routes
         r.on do
           json_response.call(Result::PAGE_NOT_FOUND)
@@ -299,6 +412,430 @@ module OpenSprinkler
         # TODO: Implement log storage and retrieval
         # For now return empty array
         []
+      end
+
+      # ========== Write Endpoint Handlers ==========
+
+      # Handle /cv - change controller values
+      # rsn: reset all stations
+      # rrsn: remote reset all stations (same as rsn)
+      # en: enable/disable controller
+      # rd: set rain delay (hours)
+      # rbt: reboot (ignored in Ruby version)
+      def handle_change_values(params, controller)
+        # Reset all stations
+        if params['rsn']
+          controller.stop_all_stations
+        end
+
+        # Remote reset (same behavior)
+        if params['rrsn']
+          controller.stop_all_stations
+        end
+
+        # Enable/disable controller
+        if params.key?('en')
+          en_val = params['en'].to_i
+          controller.options.int[:device_enable] = en_val
+          controller.options.save if controller.options.respond_to?(:save)
+        end
+
+        # Rain delay
+        if params.key?('rd')
+          rd_val = params['rd'].to_i
+          controller.set_rain_delay(rd_val)
+        end
+
+        # Reboot - in Ruby version we just ignore this or could restart the service
+        # if params.key?('rbt') && params['rbt'].to_i == 1
+        #   # Could exec restart command here
+        # end
+
+        Result::SUCCESS
+      end
+
+      # Handle /co - change options
+      def handle_change_options(params, options)
+        return Result::DATA_MISSING unless options
+
+        int_opts = options.int
+        str_opts = options.string
+
+        # Map API parameter names to internal option keys
+        int_mappings = {
+          'tz' => :timezone,
+          'ntp' => :use_ntp,
+          'dhcp' => :use_dhcp,
+          'hp0' => :httpport_0,
+          'hp1' => :httpport_1,
+          'ext' => :ext_boards,
+          'sdt' => :station_delay_time,
+          'mas' => :master_station,
+          'mton' => :master_on_adj,
+          'mtof' => :master_off_adj,
+          'wl' => :water_percentage,
+          'den' => :device_enable,
+          'ipas' => :ignore_password,
+          'devid' => :device_id,
+          'con' => :lcd_contrast,
+          'lit' => :lcd_backlight,
+          'dim' => :lcd_dimming,
+          'bst' => :boost_time,
+          'uwt' => :use_weather,
+          'lg' => :enable_logging,
+          'mas2' => :master_station_2,
+          'mton2' => :master_on_adj_2,
+          'mtof2' => :master_off_adj_2,
+          'fpr0' => :pulse_rate_0,
+          'fpr1' => :pulse_rate_1,
+          're' => :remote_ext_mode,
+          'sar' => :spe_auto_refresh,
+          'sn1t' => :sensor1_type,
+          'sn1o' => :sensor1_option,
+          'sn2t' => :sensor2_type,
+          'sn2o' => :sensor2_option,
+          'sn1on' => :sensor1_on_delay,
+          'sn1of' => :sensor1_off_delay,
+          'sn2on' => :sensor2_on_delay,
+          'sn2of' => :sensor2_off_delay
+        }
+
+        str_mappings = {
+          'loc' => :location,
+          'jsp' => :javascript_url,
+          'wsp' => :weather_url,
+          'dname' => :device_name
+        }
+
+        # Apply integer options
+        int_mappings.each do |api_key, opt_key|
+          if params.key?(api_key)
+            int_opts[opt_key] = params[api_key].to_i
+          end
+        end
+
+        # Apply string options
+        str_mappings.each do |api_key, opt_key|
+          if params.key?(api_key)
+            str_opts[opt_key] = params[api_key]
+          end
+        end
+
+        # Handle password change (npw = new password MD5 hash)
+        if params.key?('npw')
+          str_opts[:password] = params['npw']
+        end
+
+        # Handle 'o' parameter - bulk options as comma-separated integers
+        # This is used by some API versions for backwards compatibility
+        if params.key?('o')
+          values = params['o'].split(',').map(&:to_i)
+          # Map positional values to options (subset of common options)
+          option_order = %i[timezone use_ntp use_dhcp ext_boards station_delay_time
+                           master_station master_on_adj master_off_adj water_percentage
+                           device_enable ignore_password]
+          values.each_with_index do |val, idx|
+            break if idx >= option_order.length
+
+            int_opts[option_order[idx]] = val
+          end
+        end
+
+        options.save if options.respond_to?(:save)
+        Result::SUCCESS
+      end
+
+      # Handle /cp - change/create program
+      # pid: program index (0-based, -1 for new)
+      # v: program data array as JSON
+      # name: program name
+      def handle_change_program(params, controller)
+        return Result::DATA_MISSING unless params.key?('v')
+
+        begin
+          program_data = JSON.parse(params['v'])
+        rescue JSON::ParserError
+          return Result::FORMAT_ERROR
+        end
+
+        pid = params['pid']&.to_i || -1
+        store = controller.program_store
+
+        if pid < 0 || pid >= store.count
+          # Create new program
+          return Result::OUT_OF_BOUND if store.count >= Scheduling::ProgramStore::MAX_PROGRAMS
+
+          program = parse_program_data(program_data, params['name'])
+          store.add(program)
+        else
+          # Update existing program
+          program = store[pid]
+          return Result::OUT_OF_BOUND unless program
+
+          update_program_from_data(program, program_data, params['name'])
+        end
+
+        store.save
+        Result::SUCCESS
+      end
+
+      # Handle /dp - delete program
+      def handle_delete_program(params, controller)
+        return Result::DATA_MISSING unless params.key?('pid')
+
+        pid = params['pid'].to_i
+        store = controller.program_store
+
+        return Result::OUT_OF_BOUND if pid < 0 || pid >= store.count
+
+        store.delete(pid)
+        store.save
+        Result::SUCCESS
+      end
+
+      # Handle /up - move program up (swap with previous)
+      def handle_move_program_up(params, controller)
+        return Result::DATA_MISSING unless params.key?('pid')
+
+        pid = params['pid'].to_i
+        store = controller.program_store
+
+        return Result::OUT_OF_BOUND if pid <= 0 || pid >= store.count
+
+        store.move_up(pid)
+        store.save
+        Result::SUCCESS
+      end
+
+      # Handle /mp - move program to new position
+      def handle_move_program(params, controller)
+        return Result::DATA_MISSING unless params.key?('from') && params.key?('to')
+
+        from = params['from'].to_i
+        to = params['to'].to_i
+        store = controller.program_store
+
+        return Result::OUT_OF_BOUND if from < 0 || from >= store.count
+        return Result::OUT_OF_BOUND if to < 0 || to >= store.count
+
+        store.move(from, to)
+        store.save
+        Result::SUCCESS
+      end
+
+      # Handle /cs - change station attributes
+      # Supports various formats for station data
+      def handle_change_stations(params, controller)
+        stations = controller.stations
+        num_boards = controller.options.int.num_boards
+
+        # Station names (snames or s[n])
+        if params.key?('snames')
+          begin
+            names = JSON.parse(params['snames'])
+            names.each_with_index do |name, idx|
+              stations[idx]&.name = name.to_s[0, Constants::STATION_NAME_SIZE]
+            end
+          rescue JSON::ParserError
+            return Result::FORMAT_ERROR
+          end
+        end
+
+        # Individual station name (sn=name, sid=station_id)
+        if params.key?('sn') && params.key?('sid')
+          sid = params['sid'].to_i
+          if sid >= 0 && sid < stations.count
+            stations[sid].name = params['sn'].to_s[0, Constants::STATION_NAME_SIZE]
+          end
+        end
+
+        # Master operation bits (masop for board arrays)
+        if params.key?('masop')
+          begin
+            bits = JSON.parse(params['masop'])
+            bits.each_with_index do |byte, board|
+              stations.set_master1_bits(board, byte) if board < num_boards
+            end
+          rescue JSON::ParserError
+            return Result::FORMAT_ERROR
+          end
+        end
+
+        # Master 2 operation bits
+        if params.key?('masop2')
+          begin
+            bits = JSON.parse(params['masop2'])
+            bits.each_with_index do |byte, board|
+              stations.set_master2_bits(board, byte) if board < num_boards
+            end
+          rescue JSON::ParserError
+            return Result::FORMAT_ERROR
+          end
+        end
+
+        # Ignore rain bits
+        if params.key?('ignore_rain')
+          begin
+            bits = JSON.parse(params['ignore_rain'])
+            bits.each_with_index do |byte, board|
+              stations.set_ignore_rain_bits(board, byte) if board < num_boards
+            end
+          rescue JSON::ParserError
+            return Result::FORMAT_ERROR
+          end
+        end
+
+        # Ignore sensor1 bits
+        if params.key?('ignore_sn1')
+          begin
+            bits = JSON.parse(params['ignore_sn1'])
+            bits.each_with_index do |byte, board|
+              stations.set_ignore_sensor1_bits(board, byte) if board < num_boards
+            end
+          rescue JSON::ParserError
+            return Result::FORMAT_ERROR
+          end
+        end
+
+        # Ignore sensor2 bits
+        if params.key?('ignore_sn2')
+          begin
+            bits = JSON.parse(params['ignore_sn2'])
+            bits.each_with_index do |byte, board|
+              stations.set_ignore_sensor2_bits(board, byte) if board < num_boards
+            end
+          rescue JSON::ParserError
+            return Result::FORMAT_ERROR
+          end
+        end
+
+        # Disable bits
+        if params.key?('stn_dis')
+          begin
+            bits = JSON.parse(params['stn_dis'])
+            bits.each_with_index do |byte, board|
+              stations.set_disabled_bits(board, byte) if board < num_boards
+            end
+          rescue JSON::ParserError
+            return Result::FORMAT_ERROR
+          end
+        end
+
+        # Group IDs
+        if params.key?('stn_grp')
+          begin
+            groups = JSON.parse(params['stn_grp'])
+            groups.each_with_index do |group_id, idx|
+              stations[idx]&.group_id = group_id.to_i
+            end
+          rescue JSON::ParserError
+            return Result::FORMAT_ERROR
+          end
+        end
+
+        stations.save
+        Result::SUCCESS
+      end
+
+      # Handle /cm - manual station control
+      # sid: station id (0-based)
+      # en: enable (1) or disable (0)
+      # t: duration in seconds (for enable)
+      def handle_manual_control(params, controller)
+        return Result::DATA_MISSING unless params.key?('sid')
+
+        sid = params['sid'].to_i
+        return Result::OUT_OF_BOUND if sid < 0 || sid >= controller.stations.count
+
+        en = params['en']&.to_i || 0
+        duration = params['t']&.to_i || 0
+
+        if en == 1
+          # Turn station on
+          return Result::DATA_MISSING if duration <= 0
+
+          controller.manual_start_station(sid, duration)
+        else
+          # Turn station off
+          controller.manual_stop_station(sid)
+        end
+
+        Result::SUCCESS
+      end
+
+      # Handle /cr - run once program
+      # t: array of durations (JSON) for each station
+      # uwt: use weather adjustment (0/1)
+      def handle_run_once(params, controller)
+        return Result::DATA_MISSING unless params.key?('t')
+
+        begin
+          durations = JSON.parse(params['t'])
+        rescue JSON::ParserError
+          return Result::FORMAT_ERROR
+        end
+
+        return Result::FORMAT_ERROR unless durations.is_a?(Array)
+
+        use_weather = (params['uwt']&.to_i || 0) == 1
+
+        controller.run_once(
+          durations.map(&:to_i),
+          use_weather: use_weather
+        )
+
+        Result::SUCCESS
+      end
+
+      # Handle /pq - pause/resume queue
+      # dur: pause duration in seconds (0 = resume)
+      def handle_pause_queue(params, controller)
+        dur = params['dur']&.to_i || 0
+
+        if dur > 0
+          controller.pause(dur)
+        else
+          controller.resume
+        end
+
+        Result::SUCCESS
+      end
+
+      # Handle /dl - delete logs
+      # day: delete logs before this day (0 = delete all)
+      def handle_delete_logs(params, controller)
+        # TODO: Implement log deletion when log storage is implemented
+        Result::SUCCESS
+      end
+
+      # ========== Program Parsing Helpers ==========
+
+      def parse_program_data(data, name = nil)
+        program = Scheduling::Program.new
+        update_program_from_data(program, data, name)
+        program
+      end
+
+      def update_program_from_data(program, data, name = nil)
+        # Data format: [flag, days0, days1, starttimes[], durations[], name, daterange]
+        program.flag_byte = data[0].to_i if data[0]
+        program.days = [data[1].to_i, data[2].to_i] if data[1] && data[2]
+
+        if data[3].is_a?(Array)
+          program.starttimes = data[3].map(&:to_i)
+        end
+
+        if data[4].is_a?(Array)
+          program.durations = data[4].map(&:to_i)
+        end
+
+        program.name = (name || data[5] || 'Program').to_s
+
+        # Date range: [enabled, start, end]
+        if data[6].is_a?(Array) && data[6].length >= 3
+          program.date_range_enabled = data[6][0].to_i == 1
+          program.date_range = [data[6][1].to_i, data[6][2].to_i]
+        end
       end
 
       # All data combined

@@ -188,6 +188,16 @@ module OpenSprinkler
         }
       end
 
+      # Set program attributes from flag byte (for API compatibility)
+      def flag_byte=(flag)
+        @enabled = (flag & 0x01) != 0
+        @use_weather = (flag & 0x02) != 0
+        @oddeven = (flag >> 2) & 0x03
+        @type = (flag >> 4) & 0x03
+        @starttime_type = ((flag & 0x40) != 0) ? :fixed : :repeating
+        @date_range_enabled = (flag & 0x80) != 0
+      end
+
       private
 
       # Check if a given time matches the program's scheduled day

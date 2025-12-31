@@ -79,6 +79,19 @@ module OpenSprinkler
         true
       end
 
+      # Move a program from one position to another
+      def move(from, to)
+        return nil if from < 0 || from >= @programs.length
+        return nil if to < 0 || to >= @programs.length
+        return true if from == to
+
+        program = @programs.delete_at(from)
+        @programs.insert(to, program)
+        # Re-index all programs
+        @programs.each_with_index { |p, i| p.id = i }
+        true
+      end
+
       # Load from YAML file
       def load
         return unless @file_path && File.exist?(@file_path)
