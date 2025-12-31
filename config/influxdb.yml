@@ -1,0 +1,14 @@
+# InfluxDB Configuration for valve state logging
+# Matches behavior from OpenSprinkler.cpp:1931-1968
+
+enabled: true
+host: cube
+port: 8086
+database: ospi
+
+# Timeout in milliseconds
+timeout_ms: 5000
+
+# Measurement names (do not change - must match existing data)
+# Individual valve: "valve01", "valve02", etc.
+# Current active: "valves"

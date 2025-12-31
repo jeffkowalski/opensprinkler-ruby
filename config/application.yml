@@ -1,0 +1,29 @@
+# OpenSprinkler Ruby Configuration
+# See defines.h in C++ firmware for reference values
+
+http_port: 8080
+data_directory: ./data
+log_level: info
+
+hardware:
+  # Hardware type: ospi (real), demo (simulated GPIO output), test (mock)
+  type: ospi
+
+  # Number of 8-zone expansion boards (0-24)
+  # Total zones = (1 + ext_boards) * 8
+  ext_boards: 0
+
+gpio:
+  # OSPi pin assignments (BCM numbering)
+  # From defines.h: PIN_SR_* values
+  pin_sr_latch: 22    # Shift register latch (active low)
+  pin_sr_data: 27     # Shift register data
+  pin_sr_clock: 4     # Shift register clock
+  pin_sr_oe: 17       # Shift register output enable (active low)
+
+  # Sensor pins
+  pin_sensor1: 14     # Rain/flow sensor 1
+  pin_sensor2: 23     # Sensor 2
+
+# Default password MD5 hash (default: 'opendoor')
+default_password: a6d82bced638de3def1e9bbb4983225c

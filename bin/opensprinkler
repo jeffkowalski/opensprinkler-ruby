@@ -1,0 +1,71 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+require 'bundler/setup'
+require 'optparse'
+
+$LOAD_PATH.unshift File.expand_path('../lib', __dir__)
+require 'opensprinkler'
+
+options = {
+  config: './config/application.yml',
+  port: nil,
+  hardware: :auto
+}
+
+OptionParser.new do |opts|
+  opts.banner = "Usage: opensprinkler [options]"
+
+  opts.on('-c', '--config FILE', 'Configuration file (default: ./config/application.yml)') do |file|
+    options[:config] = file
+  end
+
+  opts.on('-p', '--port PORT', Integer, 'HTTP port (overrides config)') do |port|
+    options[:port] = port
+  end
+
+  opts.on('--hardware TYPE', [:auto, :ospi, :demo, :mock],
+          'Hardware type: auto, ospi, demo, mock') do |type|
+    options[:hardware] = type
+  end
+
+  opts.on('-v', '--version', 'Show version') do
+    puts "OpenSprinkler Ruby v#{OpenSprinkler::VERSION}"
+    puts "Firmware version: #{OpenSprinkler::FIRMWARE_VERSION}.#{OpenSprinkler::FIRMWARE_MINOR}"
+    exit
+  end
+
+  opts.on('-h', '--help', 'Show this help') do
+    puts opts
+    exit
+  end
+end.parse!
+
+puts "OpenSprinkler Ruby v#{OpenSprinkler::VERSION}"
+puts "Firmware compatible: #{OpenSprinkler::FIRMWARE_VERSION}.#{OpenSprinkler::FIRMWARE_MINOR}"
+puts
+
+# TODO: Load configuration
+# TODO: Initialize controller
+# TODO: Start web server
+# TODO: Run main loop
+
+puts "Starting with hardware: #{options[:hardware]}"
+puts "Configuration: #{options[:config]}"
+
+# For now, just demonstrate GPIO
+gpio = OpenSprinkler.create_gpio(options[:hardware])
+shift_register = OpenSprinkler::Hardware::ShiftRegister.new(gpio: gpio, num_boards: 1)
+
+puts "Hardware initialized successfully"
+puts "Press Ctrl+C to exit"
+
+# Keep running
+Signal.trap('INT') do
+  puts "\nShutting down..."
+  exit 0
+end
+
+loop do
+  sleep 1
+end
