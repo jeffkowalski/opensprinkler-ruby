@@ -60,19 +60,17 @@ module OpenSprinkler
         mask = 1 << bit_pos
 
         if value
-          if (@station_bits[board] & mask) != 0
-            :no_change  # Already on
+          if @station_bits[board].anybits?(mask)
+            :no_change # Already on
           else
             @station_bits[board] |= mask
             :turned_on
           end
+        elsif @station_bits[board].nobits?(mask)
+          :no_change # Already off
         else
-          if (@station_bits[board] & mask) == 0
-            :no_change  # Already off
-          else
-            @station_bits[board] &= ~mask
-            :turned_off
-          end
+          @station_bits[board] &= ~mask
+          :turned_off
         end
       end
 
@@ -83,7 +81,7 @@ module OpenSprinkler
         board = sid >> 3
         bit_pos = sid & 0x07
         mask = 1 << bit_pos
-        (@station_bits[board] & mask) != 0
+        @station_bits[board].anybits?(mask)
       end
 
       # Clear all station bits (but don't apply yet)
@@ -91,7 +89,7 @@ module OpenSprinkler
         @station_bits.fill(0)
       end
 
-      alias_method :clear, :clear_all
+      alias clear clear_all
 
       # Apply all station bits to hardware
       # This shifts out all bits and latches them
@@ -126,9 +124,7 @@ module OpenSprinkler
         active = []
         @station_bits.each_with_index do |byte, board|
           8.times do |bit|
-            if (byte & (1 << bit)) != 0
-              active << (board * 8 + bit)
-            end
+            active << ((board * 8) + bit) if byte.anybits?(1 << bit)
           end
         end
         active

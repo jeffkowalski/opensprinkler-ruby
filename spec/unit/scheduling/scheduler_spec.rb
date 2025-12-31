@@ -26,7 +26,7 @@ RSpec.describe OpenSprinkler::Scheduling::Scheduler do
 
       expect(scheduler.queue.size).to eq(1)
       item = scheduler.queue.find_by_station(0)
-      expect(item.program_id).to eq(99)  # Manual program ID
+      expect(item.program_id).to eq(99) # Manual program ID
       expect(item.duration).to eq(300)
     end
 
@@ -45,7 +45,7 @@ RSpec.describe OpenSprinkler::Scheduling::Scheduler do
     end
 
     it 'runs parallel stations immediately' do
-      stations[0].group_id = 255  # Parallel
+      stations[0].group_id = 255 # Parallel
       stations[1].group_id = 255
       current_time = Time.new(2025, 1, 6, 8, 0, 0)
 
@@ -132,7 +132,7 @@ RSpec.describe OpenSprinkler::Scheduling::Scheduler do
       result = scheduler.master_should_be_on?(
         current_time + 60,
         master_id: 0,
-        master_station: 1,  # Some master station configured
+        master_station: 1, # Some master station configured
         on_adjustment: 0,
         off_adjustment: 0
       )
@@ -142,7 +142,7 @@ RSpec.describe OpenSprinkler::Scheduling::Scheduler do
 
     it 'returns false when no bound stations running' do
       current_time = Time.new(2025, 1, 6, 8, 0, 0)
-      scheduler.manual_run(station_id: 1, duration: 300, current_time: current_time)  # Not bound
+      scheduler.manual_run(station_id: 1, duration: 300, current_time: current_time) # Not bound
 
       result = scheduler.master_should_be_on?(
         current_time + 60,
@@ -177,11 +177,11 @@ RSpec.describe OpenSprinkler::Scheduling::Scheduler do
 
       # Master should stay on 60 seconds after station stops
       result = scheduler.master_should_be_on?(
-        current_time + 330,  # 30 seconds after station stops
+        current_time + 330, # 30 seconds after station stops
         master_id: 0,
         master_station: 1,
         on_adjustment: 0,
-        off_adjustment: 60  # Master stays on 60 sec after
+        off_adjustment: 60 # Master stays on 60 sec after
       )
 
       expect(result).to be true
@@ -209,7 +209,7 @@ RSpec.describe OpenSprinkler::Scheduling::Scheduler do
 
       expect(status[2][0]).to eq(99)  # program_id
       expect(status[2][1]).to eq(200) # remaining time
-      expect(status[0]).to eq([0, 0, 0, 0])  # not scheduled
+      expect(status[0]).to eq([0, 0, 0, 0]) # not scheduled
     end
   end
 end

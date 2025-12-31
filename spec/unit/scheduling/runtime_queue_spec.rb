@@ -114,7 +114,7 @@ RSpec.describe OpenSprinkler::Scheduling::RuntimeQueue do
     end
 
     it 'adjusts times for currently running items' do
-      queue.apply_pause(1100, 600)  # Pause at 1100 for 600 seconds
+      queue.apply_pause(1100, 600) # Pause at 1100 for 600 seconds
 
       item = queue.find_by_station(0)
       expect(item.start_time).to eq(1700)  # 1100 + 600
@@ -133,8 +133,8 @@ RSpec.describe OpenSprinkler::Scheduling::RuntimeQueue do
       queue.apply_resume(600)
 
       item = queue.find_by_station(1)
-      # Note: resume adds 1 second adjustment
-      expect(item.start_time).to eq(2001)  # 2600 - 600 + 1
+      # NOTE: resume adds 1 second adjustment
+      expect(item.start_time).to eq(2001) # 2600 - 600 + 1
     end
   end
 end

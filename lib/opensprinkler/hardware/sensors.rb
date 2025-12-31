@@ -14,11 +14,11 @@ module OpenSprinkler
       :off_timer,      # Time when off-delay expires
       :on_delay,       # On delay in seconds
       :off_delay,      # Off delay in seconds
-      :last_active_time,  # Time when sensor became active
+      :last_active_time, # Time when sensor became active
       keyword_init: true
     ) do
       def binary?
-        type == Constants::SENSOR_TYPE_RAIN || type == Constants::SENSOR_TYPE_SOIL
+        [Constants::SENSOR_TYPE_RAIN, Constants::SENSOR_TYPE_SOIL].include?(type)
       end
 
       def flow?
@@ -48,7 +48,7 @@ module OpenSprinkler
           active: false,
           on_timer: 0,
           off_timer: 0,
-          on_delay: 5,   # minimum 5 seconds
+          on_delay: 5, # minimum 5 seconds
           off_delay: 5,
           last_active_time: 0
         )
@@ -157,11 +157,11 @@ module OpenSprinkler
         # Compare with option (0 = NC, 1 = NO)
         # If sensor option is 0 (NC), triggered when read is 1 (open)
         # If sensor option is 1 (NO), triggered when read is 0 (closed)
-        sensor.raw_state = (raw_val == sensor.option) ? 0 : 1
+        sensor.raw_state = raw_val == sensor.option ? 0 : 1
 
         if sensor.raw_state == 1
           # Sensor is triggered
-          if sensor.on_timer == 0
+          if sensor.on_timer.zero?
             # Start on-delay timer
             sensor.on_timer = current_time + sensor.on_delay
             sensor.off_timer = 0
@@ -169,16 +169,14 @@ module OpenSprinkler
             # On-delay expired, sensor is now active
             sensor.active = true
           end
-        else
+        elsif sensor.off_timer.zero?
           # Sensor is not triggered
-          if sensor.off_timer == 0
-            # Start off-delay timer
-            sensor.off_timer = current_time + sensor.off_delay
-            sensor.on_timer = 0
-          elsif current_time >= sensor.off_timer
-            # Off-delay expired, sensor is now inactive
-            sensor.active = false
-          end
+          sensor.off_timer = current_time + sensor.off_delay
+          sensor.on_timer = 0
+        # Start off-delay timer
+        elsif current_time >= sensor.off_timer
+          # Off-delay expired, sensor is now inactive
+          sensor.active = false
         end
       end
     end

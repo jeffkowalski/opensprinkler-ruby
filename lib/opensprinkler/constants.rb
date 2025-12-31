@@ -7,7 +7,7 @@
 module OpenSprinkler
   module Constants
     # Firmware version
-    FW_VERSION = 221  # 2.2.1
+    FW_VERSION = 221 # 2.2.1
     FW_MINOR = 4
 
     # Hardware version bases
@@ -78,7 +78,7 @@ module OpenSprinkler
 
     # HTTP request results
     module HttpResult
-      SUCCESS       =  0
+      SUCCESS = 0
       NOT_RECEIVED  = -1
       CONNECT_ERR   = -2
       TIMEOUT       = -3
@@ -277,8 +277,8 @@ module OpenSprinkler
 
     # Default values
     module Defaults
-      PASSWORD       = 'a6d82bced638de3def1e9bbb4983225c'  # MD5 of 'opendoor'
-      LOCATION       = '42.36,-71.06'  # Boston, MA
+      PASSWORD       = 'a6d82bced638de3def1e9bbb4983225c' # MD5 of 'opendoor'
+      LOCATION       = '42.36,-71.06' # Boston, MA
       JAVASCRIPT_URL = 'https://ui.opensprinkler.com/js'
       WEATHER_URL    = 'weather.opensprinkler.com'
       IFTTT_URL      = 'maker.ifttt.com'
@@ -287,7 +287,7 @@ module OpenSprinkler
       OTC_SERVER_APP = 'cloud.openthings.io'
       OTC_PORT_APP   = 443
       OTC_TOKEN_LENGTH = 32
-      DEVICE_NAME    = 'My OpenSprinkler'
+      DEVICE_NAME = 'My OpenSprinkler'
 
       UNDERCURRENT_THRESHOLD = 100   # mA
       OVERCURRENT_LIMIT      = 1200  # mA

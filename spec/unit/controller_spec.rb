@@ -45,14 +45,14 @@ RSpec.describe OpenSprinkler::Controller do
   describe '#tick' do
     it 'runs control loop once per second' do
       time1 = Time.new(2025, 1, 6, 8, 0, 0)
-      time2 = Time.new(2025, 1, 6, 8, 0, 0) + 0.5  # Same second
+      time2 = Time.new(2025, 1, 6, 8, 0, 0) + 0.5 # Same second
 
       controller.tick(time1)
       expect(gpio.log).not_to be_empty
 
       gpio.clear_log
       controller.tick(time2)
-      expect(gpio.log).to be_empty  # No action for same second
+      expect(gpio.log).to be_empty # No action for same second
     end
   end
 
@@ -62,14 +62,14 @@ RSpec.describe OpenSprinkler::Controller do
 
       controller.set_rain_delay(24, current_time)
 
-      expect(controller.rain_delay_stop_time).to eq(current_time.to_i + 86400)
+      expect(controller.rain_delay_stop_time).to eq(current_time.to_i + 86_400)
     end
 
     it 'clears rain delay when set to 0' do
       current_time = Time.new(2025, 1, 6, 8, 0, 0)
 
       controller.set_rain_delay(24, current_time)
-      controller.tick(current_time)  # Activate rain delay
+      controller.tick(current_time) # Activate rain delay
       expect(controller.rain_delayed?).to be true
 
       controller.set_rain_delay(0, current_time)
@@ -85,7 +85,7 @@ RSpec.describe OpenSprinkler::Controller do
       controller.tick(current_time)
 
       # Check 12 hours later
-      expect(controller.rain_delay_remaining(current_time + 43200)).to eq(12)
+      expect(controller.rain_delay_remaining(current_time + 43_200)).to eq(12)
     end
   end
 

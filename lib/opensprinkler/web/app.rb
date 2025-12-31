@@ -19,32 +19,32 @@ module OpenSprinkler
 
       # API result codes
       module Result
-        SUCCESS        = { 'result' => 1 }
-        UNAUTHORIZED   = { 'result' => 2 }
-        MISMATCH       = { 'result' => 3 }
-        DATA_MISSING   = { 'result' => 16 }
-        OUT_OF_BOUND   = { 'result' => 17 }
-        FORMAT_ERROR   = { 'result' => 18 }
-        PAGE_NOT_FOUND = { 'result' => 32 }
-        NOT_PERMITTED  = { 'result' => 48 }
+        SUCCESS        = { 'result' => 1 }.freeze
+        UNAUTHORIZED   = { 'result' => 2 }.freeze
+        MISMATCH       = { 'result' => 3 }.freeze
+        DATA_MISSING   = { 'result' => 16 }.freeze
+        OUT_OF_BOUND   = { 'result' => 17 }.freeze
+        FORMAT_ERROR   = { 'result' => 18 }.freeze
+        PAGE_NOT_FOUND = { 'result' => 32 }.freeze
+        NOT_PERMITTED  = { 'result' => 48 }.freeze
       end
 
       # Set the controller instance
-      def self.controller=(ctrl)
-        @controller = ctrl
+      class << self
+        attr_writer :controller
       end
 
-      def self.controller
-        @controller
+      class << self
+        attr_reader :controller
       end
 
       # Set options (for password verification)
-      def self.options=(opts)
-        @options = opts
+      class << self
+        attr_writer :options
       end
 
-      def self.options
-        @options
+      class << self
+        attr_reader :options
       end
 
       route do |r|
@@ -64,7 +64,10 @@ module OpenSprinkler
         end
 
         # JSON response helper
-        json_response = ->(data) { response['Content-Type'] = 'application/json'; data.to_json }
+        json_response = lambda { |data|
+          response['Content-Type'] = 'application/json'
+          data.to_json
+        }
 
         # Root - redirect to UI
         r.root do
@@ -75,76 +78,76 @@ module OpenSprinkler
 
         # /jc - Controller status (main status endpoint)
         r.get 'jc' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             json_response.call(controller.controller_status)
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /jo - Options
         r.get 'jo' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             json_response.call(options_to_api(options))
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /jp - Programs
         r.get 'jp' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             json_response.call(programs_to_api(controller))
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /js - Station status (which stations are on)
         r.get 'js' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             json_response.call(station_status_to_api(controller))
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /jn - Station names
         r.get 'jn' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             json_response.call(station_names_to_api(controller))
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /je - Station special data (attributes)
         r.get 'je' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             json_response.call(station_special_to_api(controller))
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /jl - Logs
         r.get 'jl' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             # Parse date parameters
-            start_date = r.params['start']&.to_i || 0
+            start_date = r.params['start'].to_i
             end_date = r.params['end']&.to_i || Time.now.to_i
             json_response.call(logs_to_api(controller, start_date, end_date))
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /ja - All data (combined endpoint)
         r.get 'ja' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             json_response.call(all_data_to_api(controller, options))
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
@@ -153,111 +156,111 @@ module OpenSprinkler
         # /cv - Change controller values
         # Parameters: rsn (reset all), en (enable), rd (rain delay hours), rbt (reboot)
         r.get 'cv' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             result = handle_change_values(r.params, controller)
             json_response.call(result)
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /co - Change options
         r.get 'co' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             result = handle_change_options(r.params, options)
             json_response.call(result)
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /cp - Change program (create/update)
         r.get 'cp' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             result = handle_change_program(r.params, controller)
             json_response.call(result)
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /dp - Delete program
         r.get 'dp' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             result = handle_delete_program(r.params, controller)
             json_response.call(result)
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /up - Move program up
         r.get 'up' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             result = handle_move_program_up(r.params, controller)
             json_response.call(result)
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /mp - Move program (reorder)
         r.get 'mp' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             result = handle_move_program(r.params, controller)
             json_response.call(result)
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /cs - Change station attributes
         r.get 'cs' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             result = handle_change_stations(r.params, controller)
             json_response.call(result)
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /cm - Manual control (turn station on/off)
         r.get 'cm' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             result = handle_manual_control(r.params, controller)
             json_response.call(result)
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /cr - Run once program
         r.get 'cr' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             result = handle_run_once(r.params, controller)
             json_response.call(result)
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /pq - Pause/resume queue
         r.get 'pq' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             result = handle_pause_queue(r.params, controller)
             json_response.call(result)
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
         # /dl - Delete logs
         r.get 'dl' do
-          unless verify_password.call
-            json_response.call(Result::UNAUTHORIZED)
-          else
+          if verify_password.call
             result = handle_delete_logs(r.params, controller)
             json_response.call(result)
+          else
+            json_response.call(Result::UNAUTHORIZED)
           end
         end
 
@@ -422,14 +425,10 @@ module OpenSprinkler
       # rbt: reboot (ignored in Ruby version)
       def handle_change_values(params, controller)
         # Reset all stations
-        if params['rsn']
-          controller.stop_all_stations
-        end
+        controller.stop_all_stations if params['rsn']
 
         # Remote reset (same behavior)
-        if params['rrsn']
-          controller.stop_all_stations
-        end
+        controller.stop_all_stations if params['rrsn']
 
         # Enable/disable controller
         if params.key?('en')
@@ -507,22 +506,16 @@ module OpenSprinkler
 
         # Apply integer options
         int_mappings.each do |api_key, opt_key|
-          if params.key?(api_key)
-            int_opts[opt_key] = params[api_key].to_i
-          end
+          int_opts[opt_key] = params[api_key].to_i if params.key?(api_key)
         end
 
         # Apply string options
         str_mappings.each do |api_key, opt_key|
-          if params.key?(api_key)
-            str_opts[opt_key] = params[api_key]
-          end
+          str_opts[opt_key] = params[api_key] if params.key?(api_key)
         end
 
         # Handle password change (npw = new password MD5 hash)
-        if params.key?('npw')
-          str_opts[:password] = params['npw']
-        end
+        str_opts[:password] = params['npw'] if params.key?('npw')
 
         # Handle 'o' parameter - bulk options as comma-separated integers
         # This is used by some API versions for backwards compatibility
@@ -530,8 +523,8 @@ module OpenSprinkler
           values = params['o'].split(',').map(&:to_i)
           # Map positional values to options (subset of common options)
           option_order = %i[timezone use_ntp use_dhcp ext_boards station_delay_time
-                           master_station master_on_adj master_off_adj water_percentage
-                           device_enable ignore_password]
+                            master_station master_on_adj master_off_adj water_percentage
+                            device_enable ignore_password]
           values.each_with_index do |val, idx|
             break if idx >= option_order.length
 
@@ -559,7 +552,7 @@ module OpenSprinkler
         pid = params['pid']&.to_i || -1
         store = controller.program_store
 
-        if pid < 0 || pid >= store.count
+        if pid.negative? || pid >= store.count
           # Create new program
           return Result::OUT_OF_BOUND if store.count >= Scheduling::ProgramStore::MAX_PROGRAMS
 
@@ -584,7 +577,7 @@ module OpenSprinkler
         pid = params['pid'].to_i
         store = controller.program_store
 
-        return Result::OUT_OF_BOUND if pid < 0 || pid >= store.count
+        return Result::OUT_OF_BOUND if pid.negative? || pid >= store.count
 
         store.delete(pid)
         store.save
@@ -613,8 +606,8 @@ module OpenSprinkler
         to = params['to'].to_i
         store = controller.program_store
 
-        return Result::OUT_OF_BOUND if from < 0 || from >= store.count
-        return Result::OUT_OF_BOUND if to < 0 || to >= store.count
+        return Result::OUT_OF_BOUND if from.negative? || from >= store.count
+        return Result::OUT_OF_BOUND if to.negative? || to >= store.count
 
         store.move(from, to)
         store.save
@@ -642,9 +635,7 @@ module OpenSprinkler
         # Individual station name (sn=name, sid=station_id)
         if params.key?('sn') && params.key?('sid')
           sid = params['sid'].to_i
-          if sid >= 0 && sid < stations.count
-            stations[sid].name = params['sn'].to_s[0, Constants::STATION_NAME_SIZE]
-          end
+          stations[sid].name = params['sn'].to_s[0, Constants::STATION_NAME_SIZE] if sid >= 0 && sid < stations.count
         end
 
         # Master operation bits (masop for board arrays)
@@ -743,10 +734,10 @@ module OpenSprinkler
         return Result::DATA_MISSING unless params.key?('sid')
 
         sid = params['sid'].to_i
-        return Result::OUT_OF_BOUND if sid < 0 || sid >= controller.stations.count
+        return Result::OUT_OF_BOUND if sid.negative? || sid >= controller.stations.count
 
-        en = params['en']&.to_i || 0
-        duration = params['t']&.to_i || 0
+        en = params['en'].to_i
+        duration = params['t'].to_i
 
         if en == 1
           # Turn station on
@@ -775,7 +766,7 @@ module OpenSprinkler
 
         return Result::FORMAT_ERROR unless durations.is_a?(Array)
 
-        use_weather = (params['uwt']&.to_i || 0) == 1
+        use_weather = params['uwt'].to_i == 1
 
         controller.run_once(
           durations.map(&:to_i),
@@ -788,9 +779,9 @@ module OpenSprinkler
       # Handle /pq - pause/resume queue
       # dur: pause duration in seconds (0 = resume)
       def handle_pause_queue(params, controller)
-        dur = params['dur']&.to_i || 0
+        dur = params['dur'].to_i
 
-        if dur > 0
+        if dur.positive?
           controller.pause(dur)
         else
           controller.resume
@@ -802,12 +793,12 @@ module OpenSprinkler
       # Handle /dl - delete logs
       # day: delete logs before this day (0 = delete all)
       def handle_delete_logs(params, controller)
-        day = params['day']&.to_i || 0
+        day = params['day'].to_i
 
-        if day == 0
+        if day.zero?
           controller.log_store.clear
         else
-          before_date = Time.at(day * 86400)
+          before_date = Time.at(day * 86_400)
           controller.log_store.delete_before(before_date)
         end
 
@@ -827,21 +818,17 @@ module OpenSprinkler
         program.flag_byte = data[0].to_i if data[0]
         program.days = [data[1].to_i, data[2].to_i] if data[1] && data[2]
 
-        if data[3].is_a?(Array)
-          program.starttimes = data[3].map(&:to_i)
-        end
+        program.starttimes = data[3].map(&:to_i) if data[3].is_a?(Array)
 
-        if data[4].is_a?(Array)
-          program.durations = data[4].map(&:to_i)
-        end
+        program.durations = data[4].map(&:to_i) if data[4].is_a?(Array)
 
         program.name = (name || data[5] || 'Program').to_s
 
         # Date range: [enabled, start, end]
-        if data[6].is_a?(Array) && data[6].length >= 3
-          program.date_range_enabled = data[6][0].to_i == 1
-          program.date_range = [data[6][1].to_i, data[6][2].to_i]
-        end
+        return unless data[6].is_a?(Array) && data[6].length >= 3
+
+        program.date_range_enabled = data[6][0].to_i == 1
+        program.date_range = [data[6][1].to_i, data[6][2].to_i]
       end
 
       # All data combined

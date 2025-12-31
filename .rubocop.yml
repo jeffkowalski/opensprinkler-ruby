@@ -1,0 +1,61 @@
+AllCops:
+  NewCops: enable
+  TargetRubyVersion: 3.2
+  SuggestExtensions: false
+  Exclude:
+    - 'vendor/**/*'
+    - 'bin/migrate_data'
+
+Layout/LineLength:
+  Max: 320
+
+# Metrics - relaxed for this codebase
+Metrics/MethodLength:
+  Max: 100
+  Exclude:
+    - 'spec/**/*'
+
+Metrics/BlockLength:
+  Max: 30
+  Exclude:
+    - 'spec/**/*'
+    - 'lib/opensprinkler/web/app.rb'
+    - 'bin/opensprinkler'
+
+Metrics/AbcSize:
+  Max: 85
+
+Metrics/ClassLength:
+  Max: 600
+
+Metrics/CyclomaticComplexity:
+  Max: 40
+
+Metrics/PerceivedComplexity:
+  Max: 40
+
+# Naming - allow OpenSprinkler API conventions
+Naming/VariableNumber:
+  Enabled: false
+
+Naming/PredicateMethod:
+  Enabled: false
+
+Naming/BlockForwarding:
+  Enabled: false
+
+# Style
+Style/Documentation:
+  Enabled: false
+
+Style/NumericPredicate:
+  EnforcedStyle: predicate
+
+Style/FormatStringToken:
+  Enabled: false
+
+Style/ArgumentsForwarding:
+  Enabled: false
+
+# Lint
+# (Lint/MissingSuper enabled by default)

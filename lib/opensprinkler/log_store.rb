@@ -30,7 +30,7 @@ module OpenSprinkler
 
     def initialize(log_dir:)
       @log_dir = log_dir
-      @cache = {}  # Date string => entries
+      @cache = {} # Date string => entries
       FileUtils.mkdir_p(@log_dir)
     end
 
@@ -62,7 +62,7 @@ module OpenSprinkler
       # Encode sensor event: station_id encodes sensor number and state
       # sensor_id = 200 + sensor_num - 1 (200 for sensor 1, 201 for sensor 2)
       station_id = 200 + sensor_num - 1
-      duration = active ? 1 : 0  # 1 = on, 0 = off
+      duration = active ? 1 : 0 # 1 = on, 0 = off
 
       entry = [0, station_id, duration, timestamp.to_i, RECORD_SENSOR]
 
@@ -103,13 +103,13 @@ module OpenSprinkler
         # Filter by exact time range
         day_entries.each do |entry|
           entry_time = entry[3]
-          entries << entry if entry_time >= start_time && entry_time <= end_time
+          entries << entry if entry_time.between?(start_time, end_time)
         end
 
-        current += 86400  # Next day
+        current += 86_400 # Next day
       end
 
-      entries.sort_by { |e| e[3] }  # Sort by timestamp
+      entries.sort_by { |e| e[3] } # Sort by timestamp
     end
 
     # Delete logs before a given date
@@ -121,11 +121,11 @@ module OpenSprinkler
 
       Dir.glob(File.join(@log_dir, '*.json')).each do |file|
         basename = File.basename(file, '.json')
-        if basename < before_str
-          File.delete(file)
-          @cache.delete(basename)
-          deleted += 1
-        end
+        next unless basename < before_str
+
+        File.delete(file)
+        @cache.delete(basename)
+        deleted += 1
       end
 
       deleted

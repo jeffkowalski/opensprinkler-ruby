@@ -28,21 +28,21 @@ RSpec.describe OpenSprinkler::Scheduling::Program do
       # Bit 14 set (sunrise) + 30 minutes offset
       encoded = (1 << 14) | 30
       result = program.decode_starttime(encoded, sunrise_time: sunrise, sunset_time: sunset)
-      expect(result).to eq(390)  # 6:00 + 0:30 = 6:30 AM
+      expect(result).to eq(390) # 6:00 + 0:30 = 6:30 AM
     end
 
     it 'decodes sunrise relative time with negative offset' do
       # Bit 14 set (sunrise) + bit 12 set (negative) + 30 minutes
       encoded = (1 << 14) | (1 << 12) | 30
       result = program.decode_starttime(encoded, sunrise_time: sunrise, sunset_time: sunset)
-      expect(result).to eq(330)  # 6:00 - 0:30 = 5:30 AM
+      expect(result).to eq(330) # 6:00 - 0:30 = 5:30 AM
     end
 
     it 'decodes sunset relative time' do
       # Bit 13 set (sunset) + 60 minutes offset
       encoded = (1 << 13) | 60
       result = program.decode_starttime(encoded, sunrise_time: sunrise, sunset_time: sunset)
-      expect(result).to eq(1140)  # 6:00 PM + 1:00 = 7:00 PM
+      expect(result).to eq(1140) # 6:00 PM + 1:00 = 7:00 PM
     end
 
     it 'clamps negative results to 0' do
@@ -68,21 +68,21 @@ RSpec.describe OpenSprinkler::Scheduling::Program do
       before do
         program.enabled = true
         program.type = described_class::TYPE_WEEKLY
-        program.days = [0b0000101, 0]  # Monday and Wednesday (bits 0 and 2)
-        program.starttimes = [480, 0, 0, 0]  # 8:00 AM, repeating
+        program.days = [0b0000101, 0] # Monday and Wednesday (bits 0 and 2)
+        program.starttimes = [480, 0, 0, 0] # 8:00 AM, repeating
         program.starttime_type = :repeating
       end
 
       it 'matches on scheduled day and time' do
         # Monday at 8:00 AM
-        time = Time.new(2025, 1, 6, 8, 0, 0)  # Monday
+        time = Time.new(2025, 1, 6, 8, 0, 0) # Monday
         result = program.check_match(time, sunrise_time: sunrise, sunset_time: sunset)
         expect(result).to eq(1)
       end
 
       it 'does not match on wrong day' do
         # Tuesday at 8:00 AM
-        time = Time.new(2025, 1, 7, 8, 0, 0)  # Tuesday
+        time = Time.new(2025, 1, 7, 8, 0, 0) # Tuesday
         result = program.check_match(time, sunrise_time: sunrise, sunset_time: sunset)
         expect(result).to be_nil
       end
@@ -106,8 +106,8 @@ RSpec.describe OpenSprinkler::Scheduling::Program do
       before do
         program.enabled = true
         program.type = described_class::TYPE_WEEKLY
-        program.days = [0b1111111, 0]  # Every day
-        program.starttimes = [360, 3, 120, 0]  # Start 6:00, repeat 3 times, every 2 hours
+        program.days = [0b1111111, 0] # Every day
+        program.starttimes = [360, 3, 120, 0] # Start 6:00, repeat 3 times, every 2 hours
         program.starttime_type = :repeating
       end
 
@@ -118,7 +118,7 @@ RSpec.describe OpenSprinkler::Scheduling::Program do
       end
 
       it 'matches second run' do
-        time = Time.new(2025, 1, 6, 8, 0, 0)  # 6:00 + 2:00
+        time = Time.new(2025, 1, 6, 8, 0, 0) # 6:00 + 2:00
         result = program.check_match(time, sunrise_time: sunrise, sunset_time: sunset)
         expect(result).to eq(2)
       end
@@ -141,7 +141,7 @@ RSpec.describe OpenSprinkler::Scheduling::Program do
         program.enabled = true
         program.type = described_class::TYPE_WEEKLY
         program.days = [0b1111111, 0]
-        program.starttimes = [360, 480, 720, 0x8000]  # 6:00, 8:00, 12:00, disabled
+        program.starttimes = [360, 480, 720, 0x8000] # 6:00, 8:00, 12:00, disabled
         program.starttime_type = :fixed
       end
 
@@ -161,8 +161,8 @@ RSpec.describe OpenSprinkler::Scheduling::Program do
       before do
         program.enabled = true
         program.type = described_class::TYPE_INTERVAL
-        program.days = [0, 3]  # Remainder 0, interval 3 days
-        program.starttimes = [480, 0, 0, 0]  # 8:00 AM
+        program.days = [0, 3] # Remainder 0, interval 3 days
+        program.starttimes = [480, 0, 0, 0] # 8:00 AM
         program.starttime_type = :repeating
       end
 
@@ -171,11 +171,11 @@ RSpec.describe OpenSprinkler::Scheduling::Program do
         # Jan 1, 1970 was day 0, so we need day divisible by 3
         # Jan 4, 2025 should be about day 20092
         base_time = Time.new(2025, 1, 1, 8, 0, 0)
-        epoch_day = base_time.to_i / 86400
+        epoch_day = base_time.to_i / 86_400
 
         # Find next day where epoch_day % 3 == 0
         offset = (3 - (epoch_day % 3)) % 3
-        matching_time = base_time + (offset * 86400)
+        matching_time = base_time + (offset * 86_400)
 
         result = program.check_match(matching_time, sunrise_time: sunrise, sunset_time: sunset)
         expect(result).to eq(1)

@@ -14,17 +14,14 @@ module OpenSprinkler
     class Station
       include Constants
 
-      attr_accessor :name, :type, :group_id
-      attr_accessor :master1_bound, :master2_bound
-      attr_accessor :ignore_sensor1, :ignore_sensor2, :ignore_rain_delay
-      attr_accessor :disabled, :activate_relay
-      attr_reader :special_data
+      attr_accessor :name, :type, :group_id, :master1_bound, :master2_bound, :ignore_sensor1, :ignore_sensor2,
+                    :ignore_rain_delay, :disabled, :activate_relay, :special_data
 
       def initialize(id:, name: nil)
         @id = id
         @name = name || format('S%02d', id + 1)
         @type = StationType::STANDARD
-        @group_id = 0  # 0 = sequential group 0, 255 = parallel
+        @group_id = 0 # 0 = sequential group 0, 255 = parallel
         @special_data = nil
 
         # Attribute flags
@@ -66,9 +63,6 @@ module OpenSprinkler
       end
 
       # Set special station data based on type
-      def special_data=(data)
-        @special_data = data
-      end
 
       # Convert to hash for persistence/API
       def to_h
@@ -100,9 +94,7 @@ module OpenSprinkler
         station.ignore_rain_delay = data['ignore_rain_delay'] || false
         station.disabled = data['disabled'] || false
 
-        if data['special_data']
-          station.special_data = SpecialStationData.from_h(data['special_data'], station.type)
-        end
+        station.special_data = SpecialStationData.from_h(data['special_data'], station.type) if data['special_data']
 
         station
       end
@@ -130,8 +122,6 @@ module OpenSprinkler
             port: data['port'],
             station_id: data['station_id']
           )
-        else
-          nil
         end
       end
     end
@@ -141,6 +131,7 @@ module OpenSprinkler
       attr_accessor :pin, :active_high
 
       def initialize(pin:, active_high: true)
+        super()
         @pin = pin
         @active_high = active_high
       end
@@ -157,7 +148,8 @@ module OpenSprinkler
     class HTTPStationData < SpecialStationData
       attr_accessor :host, :port, :on_command, :off_command
 
-      def initialize(host:, port: 80, on_command:, off_command:)
+      def initialize(host:, on_command:, off_command:, port: 80)
+        super()
         @host = host
         @port = port
         @on_command = on_command
@@ -178,7 +170,8 @@ module OpenSprinkler
     class RemoteIPStationData < SpecialStationData
       attr_accessor :ip, :port, :station_id
 
-      def initialize(ip:, port: 8080, station_id:)
+      def initialize(ip:, station_id:, port: 8080)
+        super()
         @ip = ip
         @port = port
         @station_id = station_id

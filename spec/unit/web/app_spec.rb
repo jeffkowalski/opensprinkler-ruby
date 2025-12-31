@@ -40,7 +40,7 @@ RSpec.describe OpenSprinkler::Web::App do
 
       expect(last_response).to be_ok
       json = JSON.parse(last_response.body)
-      expect(json['result']).to eq(2)  # UNAUTHORIZED
+      expect(json['result']).to eq(2) # UNAUTHORIZED
     end
 
     it 'returns unauthorized with wrong password' do
@@ -213,7 +213,7 @@ RSpec.describe OpenSprinkler::Web::App do
 
       expect(last_response).to be_ok
       json = JSON.parse(last_response.body)
-      expect(json['result']).to eq(32)  # PAGE_NOT_FOUND
+      expect(json['result']).to eq(32) # PAGE_NOT_FOUND
     end
   end
 
@@ -455,7 +455,7 @@ RSpec.describe OpenSprinkler::Web::App do
       expect(last_response).to be_ok
       json = JSON.parse(last_response.body)
       expect(json['result']).to eq(1)
-      expect(controller.stations[4].group_id).to eq(255)  # parallel
+      expect(controller.stations[4].group_id).to eq(255) # parallel
     end
   end
 
@@ -484,7 +484,7 @@ RSpec.describe OpenSprinkler::Web::App do
       get '/cp', pw: pw, pid: 0
 
       json = JSON.parse(last_response.body)
-      expect(json['result']).to eq(16)  # DATA_MISSING
+      expect(json['result']).to eq(16) # DATA_MISSING
     end
   end
 

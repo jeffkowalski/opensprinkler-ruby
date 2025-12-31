@@ -76,9 +76,7 @@ module OpenSprinkler
           schedule_program(program, current_time, queue_option: queue_option)
 
           # Mark single-run programs for deletion after last match
-          if program.type == Program::TYPE_SINGLE_RUN
-            programs_to_delete << idx
-          end
+          programs_to_delete << idx if program.type == Program::TYPE_SINGLE_RUN
         end
 
         # Delete single-run programs (in reverse order to preserve indices)
@@ -99,12 +97,12 @@ module OpenSprinkler
           next if @stations[station_id].disabled
 
           duration = program.duration_for(station_id, water_percentage: @water_percentage)
-          next if duration == 0
+          next if duration.zero?
 
           schedule_station(
             station_id: station_id,
             duration: duration,
-            program_id: program.id + 1,  # API uses 1-based program IDs
+            program_id: program.id + 1, # API uses 1-based program IDs
             current_time: current_time,
             queue_option: queue_option
           )
@@ -129,11 +127,7 @@ module OpenSprinkler
           group_idx = group_id < NUM_SEQ_GROUPS ? group_id : 0
           last_stop = @last_seq_stop_times[group_idx]
 
-          if last_stop > current_time.to_i
-            start_time = last_stop
-          else
-            start_time = current_time.to_i
-          end
+          start_time = [last_stop, current_time.to_i].max
 
           # Update last stop time for this group
           @last_seq_stop_times[group_idx] = start_time + duration
@@ -178,7 +172,7 @@ module OpenSprinkler
         wp = use_weather ? @water_percentage : 100
 
         durations.each_with_index do |duration, station_id|
-          next if duration == 0
+          next if duration.zero?
           next if station_id >= @stations.count
           next if @stations[station_id].disabled
 
@@ -216,7 +210,7 @@ module OpenSprinkler
       # @param off_adjustment [Integer] Seconds to extend master off
       # @return [Boolean] Whether master should be on
       def master_should_be_on?(current_time, master_id:, master_station:, on_adjustment:, off_adjustment:)
-        return false if master_station == 0  # No master configured
+        return false if master_station.zero? # No master configured
 
         current_ts = current_time.to_i
 
@@ -225,7 +219,7 @@ module OpenSprinkler
           next unless station
 
           # Check if this station is bound to this master
-          bound = master_id == 0 ? station.master1_bound : station.master2_bound
+          bound = master_id.zero? ? station.master1_bound : station.master2_bound
           next unless bound
 
           # Check if station is within master window
@@ -234,9 +228,7 @@ module OpenSprinkler
           master_on_time = item.start_time - on_adjustment
           master_off_time = item.end_time + off_adjustment
 
-          if current_ts >= master_on_time && current_ts < master_off_time
-            return true
-          end
+          return true if current_ts >= master_on_time && current_ts < master_off_time
         end
 
         false
@@ -248,7 +240,7 @@ module OpenSprinkler
       end
 
       # Stop all running stations
-      def stop_all(current_time)
+      def stop_all(_current_time)
         @queue.clear
         reset_sequential_times
       end

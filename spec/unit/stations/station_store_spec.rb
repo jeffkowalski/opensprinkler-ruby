@@ -76,7 +76,7 @@ RSpec.describe OpenSprinkler::Stations::StationStore do
 
   describe '#set_master1_bits' do
     it 'sets station attributes from bitfield' do
-      store.set_master1_bits(0, 0b00001010)  # bits 1 and 3
+      store.set_master1_bits(0, 0b00001010) # bits 1 and 3
 
       expect(store[0].master1_bound).to be false
       expect(store[1].master1_bound).to be true

@@ -37,15 +37,13 @@ module OpenSprinkler
         @chip_id = pi5? ? 4 : 0
 
         @handle = LGPIO.chip_open(@chip_id)
-        if @handle.nil? || @handle < 0
-          # Fallback to gpiochip0 if gpiochip4 failed
-          if @chip_id != 0
-            @chip_id = 0
-            @handle = LGPIO.chip_open(@chip_id)
-          end
+        # Fallback to gpiochip0 if gpiochip4 failed
+        if (@handle.nil? || @handle.negative?) && (@chip_id != 0)
+          @chip_id = 0
+          @handle = LGPIO.chip_open(@chip_id)
         end
 
-        raise "Failed to open GPIO chip" if @handle.nil? || @handle < 0
+        raise 'Failed to open GPIO chip' if @handle.nil? || @handle.negative?
       end
 
       # Close GPIO connection
@@ -67,9 +65,7 @@ module OpenSprinkler
         ensure_open
 
         # Release if already claimed
-        if @claimed_pins[pin]
-          LGPIO.gpio_free(@handle, pin)
-        end
+        LGPIO.gpio_free(@handle, pin) if @claimed_pins[pin]
 
         case mode
         when INPUT
@@ -124,7 +120,7 @@ module OpenSprinkler
       HIGH = 1
 
       attr_reader :pin_modes, :pin_states, :operations
-      alias_method :log, :operations
+      alias log operations
 
       def initialize
         @pin_modes = {}
@@ -152,28 +148,28 @@ module OpenSprinkler
         @pin_states[pin]
       end
 
-      alias_method :read, :digital_read
+      alias read digital_read
 
       def digital_write(pin, value)
         @operations << [:digital_write, pin, value]
         @pin_states[pin] = value
       end
 
-      alias_method :write, :digital_write
+      alias write digital_write
 
       # Test helper: set a pin's input value
       def set_input(pin, value)
         @pin_states[pin] = value
       end
 
-      alias_method :set_state, :set_input
+      alias set_state set_input
 
       # Test helper: clear operation log
       def clear_operations
         @operations.clear
       end
 
-      alias_method :clear_log, :clear_operations
+      alias clear_log clear_operations
     end
 
     # Demo GPIO that prints operations to stdout
@@ -190,11 +186,11 @@ module OpenSprinkler
       end
 
       def open
-        puts "[GPIO] Opened (demo mode)"
+        puts '[GPIO] Opened (demo mode)'
       end
 
       def close
-        puts "[GPIO] Closed"
+        puts '[GPIO] Closed'
       end
 
       def pin_mode(pin, mode)

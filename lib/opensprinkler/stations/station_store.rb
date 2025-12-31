@@ -88,7 +88,7 @@ module OpenSprinkler
       def master1_bits(board)
         bits = 0
         8.times do |i|
-          sid = board * 8 + i
+          sid = (board * 8) + i
           next if sid >= @stations.length
 
           bits |= (1 << i) if @stations[sid].master1_bound
@@ -99,7 +99,7 @@ module OpenSprinkler
       def master2_bits(board)
         bits = 0
         8.times do |i|
-          sid = board * 8 + i
+          sid = (board * 8) + i
           next if sid >= @stations.length
 
           bits |= (1 << i) if @stations[sid].master2_bound
@@ -110,7 +110,7 @@ module OpenSprinkler
       def ignore_rain_bits(board)
         bits = 0
         8.times do |i|
-          sid = board * 8 + i
+          sid = (board * 8) + i
           next if sid >= @stations.length
 
           bits |= (1 << i) if @stations[sid].ignore_rain_delay
@@ -121,7 +121,7 @@ module OpenSprinkler
       def ignore_sensor1_bits(board)
         bits = 0
         8.times do |i|
-          sid = board * 8 + i
+          sid = (board * 8) + i
           next if sid >= @stations.length
 
           bits |= (1 << i) if @stations[sid].ignore_sensor1
@@ -132,7 +132,7 @@ module OpenSprinkler
       def ignore_sensor2_bits(board)
         bits = 0
         8.times do |i|
-          sid = board * 8 + i
+          sid = (board * 8) + i
           next if sid >= @stations.length
 
           bits |= (1 << i) if @stations[sid].ignore_sensor2
@@ -143,7 +143,7 @@ module OpenSprinkler
       def disabled_bits(board)
         bits = 0
         8.times do |i|
-          sid = board * 8 + i
+          sid = (board * 8) + i
           next if sid >= @stations.length
 
           bits |= (1 << i) if @stations[sid].disabled
@@ -154,7 +154,7 @@ module OpenSprinkler
       def special_bits(board)
         bits = 0
         8.times do |i|
-          sid = board * 8 + i
+          sid = (board * 8) + i
           next if sid >= @stations.length
 
           bits |= (1 << i) if @stations[sid].special?
@@ -165,7 +165,7 @@ module OpenSprinkler
       def sequential_bits(board)
         bits = 0
         8.times do |i|
-          sid = board * 8 + i
+          sid = (board * 8) + i
           next if sid >= @stations.length
 
           # Sequential if group_id is not the parallel group (255)
@@ -177,7 +177,7 @@ module OpenSprinkler
       def activate_relay_bits(board)
         bits = 0
         8.times do |i|
-          sid = board * 8 + i
+          sid = (board * 8) + i
           next if sid >= @stations.length
 
           bits |= (1 << i) if @stations[sid].activate_relay
@@ -193,55 +193,55 @@ module OpenSprinkler
       # Set attribute from bitfield (for /cs API backward compatibility)
       def set_master1_bits(board, bits)
         8.times do |i|
-          sid = board * 8 + i
+          sid = (board * 8) + i
           next if sid >= @stations.length
 
-          @stations[sid].master1_bound = (bits & (1 << i)) != 0
+          @stations[sid].master1_bound = bits.anybits?(1 << i)
         end
       end
 
       def set_master2_bits(board, bits)
         8.times do |i|
-          sid = board * 8 + i
+          sid = (board * 8) + i
           next if sid >= @stations.length
 
-          @stations[sid].master2_bound = (bits & (1 << i)) != 0
+          @stations[sid].master2_bound = bits.anybits?(1 << i)
         end
       end
 
       def set_ignore_rain_bits(board, bits)
         8.times do |i|
-          sid = board * 8 + i
+          sid = (board * 8) + i
           next if sid >= @stations.length
 
-          @stations[sid].ignore_rain_delay = (bits & (1 << i)) != 0
+          @stations[sid].ignore_rain_delay = bits.anybits?(1 << i)
         end
       end
 
       def set_ignore_sensor1_bits(board, bits)
         8.times do |i|
-          sid = board * 8 + i
+          sid = (board * 8) + i
           next if sid >= @stations.length
 
-          @stations[sid].ignore_sensor1 = (bits & (1 << i)) != 0
+          @stations[sid].ignore_sensor1 = bits.anybits?(1 << i)
         end
       end
 
       def set_ignore_sensor2_bits(board, bits)
         8.times do |i|
-          sid = board * 8 + i
+          sid = (board * 8) + i
           next if sid >= @stations.length
 
-          @stations[sid].ignore_sensor2 = (bits & (1 << i)) != 0
+          @stations[sid].ignore_sensor2 = bits.anybits?(1 << i)
         end
       end
 
       def set_disabled_bits(board, bits)
         8.times do |i|
-          sid = board * 8 + i
+          sid = (board * 8) + i
           next if sid >= @stations.length
 
-          @stations[sid].disabled = (bits & (1 << i)) != 0
+          @stations[sid].disabled = bits.anybits?(1 << i)
         end
       end
 

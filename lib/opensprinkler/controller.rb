@@ -23,14 +23,12 @@ module OpenSprinkler
   class Controller
     include Constants
 
-    attr_reader :gpio, :shift_register, :sensors, :options, :stations
-    attr_reader :program_store, :scheduler, :influxdb, :log_store
+    attr_reader :gpio, :shift_register, :sensors, :options, :stations, :program_store, :scheduler, :influxdb, :log_store
 
     # Controller status
     attr_accessor :rain_delay_stop_time, :pause_state, :pause_timer
-    attr_accessor :master1_station, :master2_station
-    attr_accessor :master1_on_adj, :master1_off_adj
-    attr_accessor :master2_on_adj, :master2_off_adj
+    attr_accessor :master1_station, :master2_station, :master1_on_adj, :master1_off_adj, :master2_on_adj,
+                  :master2_off_adj
 
     def initialize(options:, gpio: nil, data_dir: nil, influxdb_config: nil)
       @options = options
@@ -96,7 +94,7 @@ module OpenSprinkler
       @prev_running_stations = []
 
       # Track last run info for API
-      @last_run = [0, 0, 0, 0]  # [station, program, duration, end_time]
+      @last_run = [0, 0, 0, 0] # [station, program, duration, end_time]
     end
 
     # Configure sensors from options
@@ -155,7 +153,7 @@ module OpenSprinkler
 
       # Handle pause countdown
       if @pause_state
-        if @pause_timer > 0
+        if @pause_timer.positive?
           @pause_timer -= 1
         else
           # Pause expired
@@ -164,12 +162,12 @@ module OpenSprinkler
       end
 
       # Process queue - determine which stations should be on
-      if @pause_state
-        # During pause, all stations should be off
-        @running_stations = []
-      else
-        @running_stations = @scheduler.process_queue(current_time)
-      end
+      @running_stations = if @pause_state
+                            # During pause, all stations should be off
+                            []
+                          else
+                            @scheduler.process_queue(current_time)
+                          end
 
       # Apply station bits
       apply_station_state(current_time)
@@ -182,7 +180,7 @@ module OpenSprinkler
     def run_loop
       while @running
         tick
-        sleep 0.1  # Small sleep to prevent CPU spinning
+        sleep 0.1 # Small sleep to prevent CPU spinning
       end
     ensure
       # Turn off all stations on exit
@@ -194,20 +192,16 @@ module OpenSprinkler
 
     def check_rain_delay(current_ts)
       if @rain_delayed
-        if current_ts >= @rain_delay_stop_time
-          raindelay_stop
-        end
-      else
-        if @rain_delay_stop_time > current_ts
-          raindelay_start(current_ts)
-        end
+        raindelay_stop if current_ts >= @rain_delay_stop_time
+      elsif @rain_delay_stop_time > current_ts
+        raindelay_start(current_ts)
       end
 
       # Track state changes for logging
-      if @old_rain_delayed != @rain_delayed
-        @old_rain_delayed = @rain_delayed
-        # TODO: Write log and send notification
-      end
+      return unless @old_rain_delayed != @rain_delayed
+
+      @old_rain_delayed = @rain_delayed
+      # TODO: Write log and send notification
     end
 
     def raindelay_start(current_ts)
@@ -225,7 +219,7 @@ module OpenSprinkler
 
     # Set rain delay in hours
     def set_rain_delay(hours, current_time = Time.now)
-      if hours > 0
+      if hours.positive?
         @rain_delay_stop_time = current_time.to_i + (hours * 3600)
       else
         @rain_delay_stop_time = 0
@@ -238,7 +232,7 @@ module OpenSprinkler
       return 0 unless @rain_delayed
 
       remaining = @rain_delay_stop_time - current_time.to_i
-      remaining > 0 ? (remaining / 3600.0).ceil : 0
+      remaining.positive? ? (remaining / 3600.0).ceil : 0
     end
 
     # ========== Pause ==========
@@ -289,7 +283,7 @@ module OpenSprinkler
 
     def should_skip_watering?
       return true if rain_delayed?
-      return true if @sensors.rain_sensed? && !@options.int[:ignore_rain].zero?
+      return true if @sensors.rain_sensed? && @options.int[:ignore_rain] != 0
 
       # Check soil sensor with per-station ignore
       # (handled at station level in schedule_program)
@@ -300,7 +294,7 @@ module OpenSprinkler
     # ========== Station Control ==========
 
     def apply_station_state(current_time)
-      current_ts = current_time.to_i
+      current_time.to_i
 
       # Apply regular station bits
       @running_stations.each do |station_id|
@@ -315,9 +309,7 @@ module OpenSprinkler
         next if station_id == @master1_station - 1
         next if station_id == @master2_station - 1
 
-        unless @running_stations.include?(station_id)
-          @shift_register.set_station_bit(station_id, 0)
-        end
+        @shift_register.set_station_bit(station_id, 0) unless @running_stations.include?(station_id)
       end
 
       # Handle master stations
@@ -327,7 +319,7 @@ module OpenSprinkler
       log_station_changes(current_time)
 
       # Apply to hardware
-      @shift_register.apply(enabled: !@options.int[:device_enable].zero?)
+      @shift_register.apply(enabled: @options.int[:device_enable] != 0)
     end
 
     def log_station_changes(current_time)
@@ -337,12 +329,10 @@ module OpenSprinkler
 
       # Log to InfluxDB
       turned_on.each { |sid| @influxdb.log_valve(sid, 1, current_time) }
-      turned_off.each { |sid| @influxdb.log_valve(sid, 0, current_time) }
 
-      # Log completed runs to file
+      # Log completed runs to file and InfluxDB
       turned_off.each do |station_id|
-        # Find the queue item for this station to get program info
-        # The item may already be dequeued, so we track last run
+        @influxdb.log_valve(station_id, 0, current_time)
         log_completed_run(station_id, current_time)
       end
 
@@ -368,7 +358,7 @@ module OpenSprinkler
                     end
 
       # Skip if no duration recorded
-      return if duration == 0
+      return if duration.zero?
 
       @log_store.log_run(
         station_id: station_id,
@@ -384,7 +374,7 @@ module OpenSprinkler
 
     def handle_master_stations(current_time)
       # Master 1
-      if @master1_station > 0
+      if @master1_station.positive?
         should_be_on = @scheduler.master_should_be_on?(
           current_time,
           master_id: 0,
@@ -400,34 +390,34 @@ module OpenSprinkler
       end
 
       # Master 2
-      if @master2_station > 0
-        should_be_on = @scheduler.master_should_be_on?(
-          current_time,
-          master_id: 1,
-          master_station: @master2_station,
-          on_adjustment: @master2_on_adj,
-          off_adjustment: @master2_off_adj
-        )
+      return unless @master2_station.positive?
 
-        @shift_register.set_station_bit(@master2_station - 1, should_be_on ? 1 : 0)
-        track_master_state(1, should_be_on, current_time.to_i)
-      end
+      should_be_on = @scheduler.master_should_be_on?(
+        current_time,
+        master_id: 1,
+        master_station: @master2_station,
+        on_adjustment: @master2_on_adj,
+        off_adjustment: @master2_off_adj
+      )
+
+      @shift_register.set_station_bit(@master2_station - 1, should_be_on ? 1 : 0)
+      track_master_state(1, should_be_on, current_time.to_i)
     end
 
     def track_master_state(master_id, is_on, current_ts)
-      last_on = master_id == 0 ? @master1_last_on : @master2_last_on
+      last_on = master_id.zero? ? @master1_last_on : @master2_last_on
 
-      if last_on == 0 && is_on
+      if last_on.zero? && is_on
         # Master just turned on
-        if master_id == 0
+        if master_id.zero?
           @master1_last_on = current_ts
         else
           @master2_last_on = current_ts
         end
         # TODO: Send notification
-      elsif last_on > 0 && !is_on
+      elsif last_on.positive? && !is_on
         # Master just turned off
-        if master_id == 0
+        if master_id.zero?
           @master1_last_on = 0
         else
           @master2_last_on = 0
@@ -448,9 +438,7 @@ module OpenSprinkler
         next if group_id == PARALLEL_GROUP_ID
 
         group_idx = group_id < NUM_SEQ_GROUPS ? group_id : 0
-        if end_time > @scheduler.last_seq_stop_times[group_idx]
-          @scheduler.last_seq_stop_times[group_idx] = end_time
-        end
+        @scheduler.last_seq_stop_times[group_idx] = end_time if end_time > @scheduler.last_seq_stop_times[group_idx]
       end
     end
 
@@ -485,7 +473,7 @@ module OpenSprinkler
 
     # ========== Sun Times ==========
 
-    def update_sun_times(current_time)
+    def update_sun_times(_current_time)
       # TODO: Calculate actual sunrise/sunset from latitude/longitude
       # For now use hardcoded defaults (sunrise/sunset times aren't stored in options)
       @scheduler.sunrise_time ||= 360   # 6:00 AM
@@ -502,10 +490,10 @@ module OpenSprinkler
         @log_store.log_sensor(sensor_num: 1, active: active, timestamp: current_time)
       end
 
-      if changes[:sensor2_changed]
-        active = @sensors.sensor2.active
-        @log_store.log_sensor(sensor_num: 2, active: active, timestamp: current_time)
-      end
+      return unless changes[:sensor2_changed]
+
+      active = @sensors.sensor2.active
+      @log_store.log_sensor(sensor_num: 2, active: active, timestamp: current_time)
     end
 
     # ========== Status ==========
@@ -525,7 +513,7 @@ module OpenSprinkler
 
     # Get status for /jc API endpoint
     def controller_status(current_time = Time.now)
-      sn = @stations.count.times.map do |i|
+      @stations.count.times.map do |i|
         @running_stations.include?(i) ? 1 : 0
       end
 
@@ -554,17 +542,15 @@ module OpenSprinkler
       Array.new(@options.int.num_boards) do |board|
         byte = 0
         8.times do |bit|
-          station_id = board * 8 + bit
-          if @running_stations.include?(station_id)
-            byte |= (1 << bit)
-          end
+          station_id = (board * 8) + bit
+          byte |= (1 << bit) if @running_stations.include?(station_id)
         end
         byte
       end
     end
 
     def last_run_info
-      @last_run  # [station, program, duration, end_time]
+      @last_run # [station, program, duration, end_time]
     end
   end
 end

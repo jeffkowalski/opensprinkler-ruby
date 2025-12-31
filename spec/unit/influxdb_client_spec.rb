@@ -46,7 +46,10 @@ RSpec.describe OpenSprinkler::InfluxDBClient do
 
       # Same state should not log again (new client to reset call count)
       call_count = 0
-      allow(Net::HTTP).to receive(:start) { call_count += 1; nil }
+      allow(Net::HTTP).to receive(:start) {
+        call_count += 1
+        nil
+      }
 
       client.log_valve(0, 1)  # same state - should not call
       expect(call_count).to eq(0)

@@ -10,7 +10,7 @@ RSpec.describe OpenSprinkler::LogStore do
   let(:store) { described_class.new(log_dir: log_dir) }
 
   after do
-    FileUtils.rm_rf(log_dir) if File.exist?(log_dir)
+    FileUtils.rm_rf(log_dir)
   end
 
   describe '#initialize' do
@@ -34,7 +34,7 @@ RSpec.describe OpenSprinkler::LogStore do
       expect(entries.length).to eq(1)
       expect(entries[0][0]).to eq(1)  # program_id
       expect(entries[0][1]).to eq(0)  # station_id
-      expect(entries[0][2]).to eq(300)  # duration
+      expect(entries[0][2]).to eq(300) # duration
       expect(entries[0][4]).to eq(0)  # record_type
     end
 
@@ -88,7 +88,7 @@ RSpec.describe OpenSprinkler::LogStore do
       # Get only day 2
       entries = store.get_entries(start_time: day2.to_i - 3600, end_time: day2.to_i + 3600)
       expect(entries.length).to eq(1)
-      expect(entries[0][1]).to eq(1)  # station_id
+      expect(entries[0][1]).to eq(1) # station_id
     end
 
     it 'returns entries sorted by timestamp' do
@@ -98,7 +98,7 @@ RSpec.describe OpenSprinkler::LogStore do
       store.log_run(station_id: 1, program_id: 1, duration: 60, end_time: Time.at(now + 50))
 
       entries = store.get_entries(start_time: now - 1, end_time: now + 200)
-      expect(entries.map { |e| e[1] }).to eq([0, 1, 2])  # sorted by time
+      expect(entries.map { |e| e[1] }).to eq([0, 1, 2]) # sorted by time
     end
   end
 
@@ -124,11 +124,11 @@ RSpec.describe OpenSprinkler::LogStore do
   describe '#clear' do
     it 'deletes all log files' do
       store.log_run(station_id: 0, program_id: 1, duration: 60, end_time: Time.now)
-      store.log_run(station_id: 1, program_id: 1, duration: 60, end_time: Time.now + 86400)
+      store.log_run(station_id: 1, program_id: 1, duration: 60, end_time: Time.now + 86_400)
 
       store.clear
 
-      entries = store.get_entries(start_time: 0, end_time: Time.now.to_i + 200000)
+      entries = store.get_entries(start_time: 0, end_time: Time.now.to_i + 200_000)
       expect(entries).to be_empty
     end
   end

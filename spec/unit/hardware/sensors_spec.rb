@@ -20,7 +20,7 @@ RSpec.describe OpenSprinkler::Hardware::Sensors do
 
       expect(sensors.sensor1.type).to eq(OpenSprinkler::Constants::SENSOR_TYPE_RAIN)
       expect(sensors.sensor1.option).to eq(0)
-      expect(sensors.sensor1.on_delay).to eq(60)   # converted to seconds
+      expect(sensors.sensor1.on_delay).to eq(60) # converted to seconds
       expect(sensors.sensor1.off_delay).to eq(120)
     end
 
@@ -42,7 +42,7 @@ RSpec.describe OpenSprinkler::Hardware::Sensors do
       sensors.configure(
         sensor_num: 1,
         type: OpenSprinkler::Constants::SENSOR_TYPE_RAIN,
-        option: 0,  # Normally closed
+        option: 0, # Normally closed
         on_delay: 0,
         off_delay: 0
       )
@@ -58,7 +58,7 @@ RSpec.describe OpenSprinkler::Hardware::Sensors do
       expect(changes[:sensor1_changed]).to be false
 
       # Second poll after delay expires
-      changes = sensors.poll(1010)  # 10 seconds later
+      changes = sensors.poll(1010) # 10 seconds later
       expect(sensors.sensor1.active).to be true
       expect(changes[:sensor1_changed]).to be true
     end
@@ -75,7 +75,7 @@ RSpec.describe OpenSprinkler::Hardware::Sensors do
 
       # First poll starts off-timer
       sensors.poll(1020)
-      expect(sensors.sensor1.active).to be true  # Still active during debounce
+      expect(sensors.sensor1.active).to be true # Still active during debounce
 
       # After delay
       changes = sensors.poll(1030)
@@ -87,7 +87,7 @@ RSpec.describe OpenSprinkler::Hardware::Sensors do
       sensors.configure(
         sensor_num: 1,
         type: OpenSprinkler::Constants::SENSOR_TYPE_RAIN,
-        option: 1,  # Normally open
+        option: 1, # Normally open
         on_delay: 0,
         off_delay: 0
       )

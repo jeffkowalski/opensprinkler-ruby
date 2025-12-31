@@ -71,7 +71,7 @@ module OpenSprinkler
 
       # Move a program up (swap with previous)
       def move_up(id)
-        return nil if id == 0 || id >= @programs.length
+        return nil if id.zero? || id >= @programs.length
 
         @programs[id], @programs[id - 1] = @programs[id - 1], @programs[id]
         @programs[id].id = id
@@ -81,8 +81,8 @@ module OpenSprinkler
 
       # Move a program from one position to another
       def move(from, to)
-        return nil if from < 0 || from >= @programs.length
-        return nil if to < 0 || to >= @programs.length
+        return nil if from.negative? || from >= @programs.length
+        return nil if to.negative? || to >= @programs.length
         return true if from == to
 
         program = @programs.delete_at(from)

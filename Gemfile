@@ -5,8 +5,8 @@ source 'https://rubygems.org'
 ruby '>= 3.2.0'
 
 # Web framework
-gem 'roda', '~> 3.85'
 gem 'puma', '~> 6.5'
+gem 'roda', '~> 3.85'
 
 # GPIO control for Raspberry Pi (only on Pi hardware)
 # Install with: bundle install --with=pi
@@ -21,8 +21,8 @@ gem 'net-http'
 gem 'yaml'
 
 group :development, :test do
-  gem 'rspec', '~> 3.13'
   gem 'rack-test', '~> 2.1'
+  gem 'rspec', '~> 3.13'
   gem 'rubocop', '~> 1.69', require: false
   gem 'rubocop-rspec', require: false
 end

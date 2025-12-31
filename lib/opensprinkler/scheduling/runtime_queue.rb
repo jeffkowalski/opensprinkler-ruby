@@ -51,7 +51,7 @@ module OpenSprinkler
 
       def initialize
         @items = []
-        @station_qid = {}  # Maps station_id -> queue index
+        @station_qid = {} # Maps station_id -> queue index
       end
 
       # Number of items in queue
@@ -68,7 +68,7 @@ module OpenSprinkler
       # @return [QueueItem, nil] The added item, or nil if queue is full
       def enqueue(station_id:, program_id:, start_time:, duration:, dequeue_time: nil)
         return nil if @items.size >= MAX_NUM_STATIONS
-        return nil if @station_qid.key?(station_id)  # Station already queued
+        return nil if @station_qid.key?(station_id) # Station already queued
 
         dequeue_time ||= start_time + duration
 
@@ -162,6 +162,7 @@ module OpenSprinkler
             # Not started yet - just push back
             item.start_time += pause_duration
           end
+
           item.dequeue_time += pause_duration
         end
       end

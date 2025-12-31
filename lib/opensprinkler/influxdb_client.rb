@@ -17,7 +17,7 @@ module OpenSprinkler
       @port = port
       @database = database
       @enabled = enabled
-      @last_states = {}  # Track valve states to detect changes
+      @last_states = {} # Track valve states to detect changes
       @current_active = 0
     end
 
@@ -121,9 +121,7 @@ module OpenSprinkler
 
           response = http.request(request)
 
-          unless response.is_a?(Net::HTTPSuccess) || response.code == '204'
-            warn "[InfluxDB] Write failed: #{response.code} #{response.body}"
-          end
+          warn "[InfluxDB] Write failed: #{response.code} #{response.body}" unless response.is_a?(Net::HTTPSuccess) || response.code == '204'
         end
       rescue StandardError => e
         warn "[InfluxDB] Error: #{e.message}"

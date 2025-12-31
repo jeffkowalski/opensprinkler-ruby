@@ -34,7 +34,7 @@ OptionParser.new do |opts|
     config[:config_file] = c
   end
 
-  opts.on('-H', '--hardware TYPE', [:auto, :ospi, :demo, :mock],
+  opts.on('-H', '--hardware TYPE', %i[auto ospi demo mock],
           'Hardware type (auto, ospi, demo, mock)') do |h|
     config[:hardware] = h
   end
@@ -58,10 +58,8 @@ end.parse!
 # Load configuration file if specified
 if config[:config_file] && File.exist?(config[:config_file])
   file_config = YAML.load_file(config[:config_file], permitted_classes: [Symbol])
-  if file_config
-    file_config.each do |key, value|
-      config[key.to_sym] = value
-    end
+  file_config&.each do |key, value|
+    config[key.to_sym] = value
   end
 end
 

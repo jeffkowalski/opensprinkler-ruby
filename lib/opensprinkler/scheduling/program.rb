@@ -33,16 +33,11 @@ module OpenSprinkler
       STARTTIME_SUNRISE_BIT = 14
       STARTTIME_SUNSET_BIT  = 13
       STARTTIME_SIGN_BIT    = 12
-      STARTTIME_DISABLED    = 0x8000  # bit 15 set = disabled
+      STARTTIME_DISABLED    = 0x8000 # bit 15 set = disabled
 
       MAX_STARTTIMES = 4
 
-      attr_accessor :id, :name, :enabled, :use_weather
-      attr_accessor :type, :oddeven, :starttime_type, :date_range_enabled
-      attr_accessor :days  # [days0, days1] - interpretation depends on type
-      attr_accessor :starttimes  # Array of 4 start times
-      attr_accessor :durations   # Array of durations per station (seconds)
-      attr_accessor :date_range  # [from, to] encoded as (month << 5) + day
+      attr_accessor :id, :name, :enabled, :use_weather, :type, :oddeven, :starttime_type, :date_range_enabled, :days, :starttimes, :durations, :date_range # [days0, days1] - interpretation depends on type  # Array of 4 start times   # Array of durations per station (seconds)  # [from, to] encoded as (month << 5) + day
 
       def initialize(id: nil)
         @id = id
@@ -51,12 +46,12 @@ module OpenSprinkler
         @use_weather = false
         @type = TYPE_WEEKLY
         @oddeven = ODDEVEN_NONE
-        @starttime_type = :repeating  # :repeating or :fixed
+        @starttime_type = :repeating # :repeating or :fixed
         @date_range_enabled = false
         @days = [0, 0]
-        @starttimes = [0, 0, 0, 0]  # [start, repeat_count, interval, unused] for repeating
+        @starttimes = [0, 0, 0, 0] # [start, repeat_count, interval, unused] for repeating
         @durations = Array.new(MAX_NUM_STATIONS, 0)
-        @date_range = [0, 0]  # min to max
+        @date_range = [0, 0] # min to max
       end
 
       # Check if program matches given time
@@ -76,8 +71,8 @@ module OpenSprinkler
         end
 
         # For repeating programs, check if started yesterday and ran overnight
-        if @starttime_type == :repeating && @starttimes[2] > 0  # has interval
-          yesterday = time - 86400
+        if @starttime_type == :repeating && @starttimes[2].positive? # has interval
+          yesterday = time - 86_400
           if check_day_match(yesterday)
             match = check_overnight_match(time, current_minute, sunrise_time, sunset_time)
             return match if match
@@ -90,38 +85,39 @@ module OpenSprinkler
       # Decode a start time value to minutes from midnight
       # Handles sunrise/sunset relative times
       def decode_starttime(encoded, sunrise_time:, sunset_time:)
-        return nil if (encoded >> 15) & 1 == 1  # Disabled
+        return nil if (encoded >> 15) & 1 == 1 # Disabled
 
-        offset = encoded & 0x7FF  # Lower 11 bits
+        offset = encoded & 0x7FF # Lower 11 bits
         offset = -offset if (encoded >> STARTTIME_SIGN_BIT) & 1 == 1
 
         if (encoded >> STARTTIME_SUNRISE_BIT) & 1 == 1
           result = sunrise_time + offset
-          [result, 0].max  # Clamp to 0
+          [result, 0].max # Clamp to 0
         elsif (encoded >> STARTTIME_SUNSET_BIT) & 1 == 1
           result = sunset_time + offset
-          [result, 1439].min  # Clamp to 1439
+          [result, 1439].min # Clamp to 1439
         else
-          encoded & 0x7FF  # Standard time (0-1439)
+          encoded & 0x7FF # Standard time (0-1439)
         end
       end
 
       # Get stations that should run (have non-zero duration)
       def active_stations
         @durations.each_with_index.filter_map do |dur, idx|
-          idx if dur > 0
+          idx if dur.positive?
         end
       end
 
       # Get duration for a station, optionally adjusted by water percentage
       def duration_for(station_id, water_percentage: 100)
         base = @durations[station_id] || 0
-        return 0 if base == 0
+        return 0 if base.zero?
 
         if @use_weather && water_percentage != 100
           adjusted = (base * water_percentage) / 100
           # Skip if adjustment makes it too short
           return 0 if water_percentage < 20 && adjusted < 10
+
           adjusted
         else
           base
@@ -141,7 +137,7 @@ module OpenSprinkler
           'date_range_enabled' => @date_range_enabled,
           'days' => @days,
           'starttimes' => @starttimes,
-          'durations' => @durations.take_while.with_index { |d, i| d > 0 || i < 8 },
+          'durations' => @durations.take_while.with_index { |d, i| d.positive? || i < 8 },
           'date_range' => @date_range
         }
       end
@@ -179,23 +175,23 @@ module OpenSprinkler
       # Decode flag byte (for API compatibility)
       def self.decode_flag(flag)
         {
-          enabled: (flag & 0x01) != 0,
-          use_weather: (flag & 0x02) != 0,
+          enabled: flag.anybits?(0x01),
+          use_weather: flag.anybits?(0x02),
           oddeven: (flag >> 2) & 0x03,
           type: (flag >> 4) & 0x03,
-          starttime_type: ((flag & 0x40) != 0) ? :fixed : :repeating,
-          date_range_enabled: (flag & 0x80) != 0
+          starttime_type: flag.anybits?(0x40) ? :fixed : :repeating,
+          date_range_enabled: flag.anybits?(0x80)
         }
       end
 
       # Set program attributes from flag byte (for API compatibility)
       def flag_byte=(flag)
-        @enabled = (flag & 0x01) != 0
-        @use_weather = (flag & 0x02) != 0
+        @enabled = flag.anybits?(0x01)
+        @use_weather = flag.anybits?(0x02)
         @oddeven = (flag >> 2) & 0x03
         @type = (flag >> 4) & 0x03
-        @starttime_type = ((flag & 0x40) != 0) ? :fixed : :repeating
-        @date_range_enabled = (flag & 0x80) != 0
+        @starttime_type = flag.anybits?(0x40) ? :fixed : :repeating
+        @date_range_enabled = flag.anybits?(0x80)
       end
 
       private
@@ -209,26 +205,26 @@ module OpenSprinkler
 
           if from_date <= to_date
             return false if current_date < from_date || current_date > to_date
-          else
+          elsif current_date > to_date && current_date < from_date
             # Range crosses year end
-            return false if current_date > to_date && current_date < from_date
+            return false
           end
         end
 
         # Check day match based on type
         case @type
         when TYPE_WEEKLY
-          weekday = (time.wday + 6) % 7  # Convert to Monday=0
-          (@days[0] & (1 << weekday)) != 0
+          weekday = (time.wday + 6) % 7 # Convert to Monday=0
+          @days[0].anybits?(1 << weekday)
 
         when TYPE_SINGLE_RUN
-          epoch_day = time.to_i / 86400
+          epoch_day = time.to_i / 86_400
           target_day = (@days[0] << 8) + @days[1]
           epoch_day == target_day
 
         when TYPE_MONTHLY
           day_of_month = @days[0] & 0x1F
-          if day_of_month == 0
+          if day_of_month.zero?
             # Last day of month
             last_day_of_month?(time)
           else
@@ -238,8 +234,9 @@ module OpenSprinkler
         when TYPE_INTERVAL
           interval = @days[1]
           remainder = @days[0]
-          return false if interval == 0
-          ((time.to_i / 86400) % interval) == remainder
+          return false if interval.zero?
+
+          ((time.to_i / 86_400) % interval) == remainder
 
         else
           false
@@ -249,22 +246,21 @@ module OpenSprinkler
       # Check odd/even day restriction
       def check_oddeven(time)
         case @oddeven
-        when ODDEVEN_NONE
-          true
         when ODDEVEN_ODD
           # Skip 31st and Feb 29
           return false if time.day == 31
           return false if time.day == 29 && time.month == 2
+
           time.day.odd?
         when ODDEVEN_EVEN
           time.day.even?
-        else
+        else # ODDEVEN_NONE or unknown
           true
         end
       end
 
       # Check time match for today
-      def check_time_match(time, current_minute, sunrise_time, sunset_time)
+      def check_time_match(_time, current_minute, sunrise_time, sunset_time)
         if @starttime_type == :fixed
           check_fixed_time_match(current_minute, sunrise_time, sunset_time)
         else
@@ -277,7 +273,7 @@ module OpenSprinkler
         @starttimes.each_with_index do |st, i|
           decoded = decode_starttime(st, sunrise_time: sunrise_time, sunset_time: sunset_time)
           next unless decoded
-          return (i + 1) if current_minute == decoded
+          return i + 1 if current_minute == decoded
         end
         nil
       end
@@ -292,28 +288,28 @@ module OpenSprinkler
 
         return 1 if current_minute == start
 
-        return nil unless current_minute > start && interval > 0
+        return nil unless current_minute > start && interval.positive?
 
         count = (current_minute - start) / interval
-        if (count * interval == (current_minute - start)) && count <= repeat_count
-          count + 1
-        end
+        return unless (count * interval == (current_minute - start)) && count <= repeat_count
+
+        count + 1
       end
 
       # Check for overnight program match
-      def check_overnight_match(time, current_minute, sunrise_time, sunset_time)
+      def check_overnight_match(_time, current_minute, sunrise_time, sunset_time)
         start = decode_starttime(@starttimes[0], sunrise_time: sunrise_time, sunset_time: sunset_time)
         return nil unless start
 
         repeat_count = @starttimes[1]
         interval = @starttimes[2]
 
-        return nil if interval == 0
+        return nil if interval.zero?
 
         count = (current_minute - start + 1440) / interval
-        if (count * interval == (current_minute - start + 1440)) && count <= repeat_count
-          count + 1
-        end
+        return unless (count * interval == (current_minute - start + 1440)) && count <= repeat_count
+
+        count + 1
       end
 
       # Encode date as (month << 5) + day
@@ -323,7 +319,7 @@ module OpenSprinkler
 
       # Check if time is last day of month
       def last_day_of_month?(time)
-        next_day = time + 86400
+        next_day = time + 86_400
         next_day.month != time.month
       end
     end

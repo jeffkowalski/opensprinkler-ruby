@@ -33,7 +33,7 @@ RSpec.describe OpenSprinkler::IntegerOptions do
 
     it 'clamps to byte range' do
       opts[:water_percentage] = 300
-      expect(opts[:water_percentage]).to eq(44)  # 300 & 0xFF
+      expect(opts[:water_percentage]).to eq(44) # 300 & 0xFF
     end
 
     it 'raises for read-only options' do
@@ -43,7 +43,7 @@ RSpec.describe OpenSprinkler::IntegerOptions do
 
   describe '#http_port' do
     it 'combines two bytes into port number' do
-      expect(opts.http_port).to eq(8080)  # 144 + 31*256
+      expect(opts.http_port).to eq(8080) # 144 + 31*256
     end
 
     it 'allows setting port' do
@@ -56,7 +56,7 @@ RSpec.describe OpenSprinkler::IntegerOptions do
 
   describe '#timezone_hours' do
     it 'converts encoded timezone to hours' do
-      expect(opts.timezone_hours).to eq(-5.0)  # (28-48)/4
+      expect(opts.timezone_hours).to eq(-5.0) # (28-48)/4
     end
 
     it 'allows setting timezone' do
@@ -67,7 +67,7 @@ RSpec.describe OpenSprinkler::IntegerOptions do
 
   describe '#station_delay_seconds' do
     it 'converts encoded delay to seconds' do
-      expect(opts.station_delay_seconds).to eq(0)  # 120-120
+      expect(opts.station_delay_seconds).to eq(0) # 120-120
     end
   end
 
