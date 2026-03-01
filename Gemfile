@@ -20,6 +20,9 @@ gem 'net-http'
 # YAML is stdlib but explicit is good
 gem 'yaml'
 
+# Logger (will leave stdlib default gems in Ruby 3.5)
+gem 'logger'
+
 group :development, :test do
   gem 'rack-test', '~> 2.1'
   gem 'rspec', '~> 3.13'

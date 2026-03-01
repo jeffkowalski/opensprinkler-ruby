@@ -43,6 +43,10 @@ OptionParser.new do |opts|
     config[:foreground] = true
   end
 
+  opts.on('-V', '--verbose', 'Verbose request logging') do
+    config[:verbose] = true
+  end
+
   opts.on('-v', '--version', 'Show version') do
     puts "OpenSprinkler Ruby v#{OpenSprinkler::VERSION}"
     puts "Firmware compatible: #{OpenSprinkler::Constants::FW_VERSION}.#{OpenSprinkler::Constants::FW_MINOR}"
@@ -112,29 +116,38 @@ puts "Hardware: #{config[:hardware]}"
 puts 'Press Ctrl+C to stop'
 puts
 
-# Handle shutdown gracefully
-shutdown = false
-trap('INT') do
-  puts "\nShutting down..."
-  shutdown = true
-end
-trap('TERM') { shutdown = true }
-
 # Start web server
 require 'puma'
 require 'puma/configuration'
 require 'puma/launcher'
 
+app = if config[:verbose]
+        require 'logger'
+        require 'rack/common_logger'
+        Rack::CommonLogger.new(OpenSprinkler::Web::App, Logger.new($stdout))
+      else
+        OpenSprinkler::Web::App
+      end
+
 puma_config = Puma::Configuration.new do |c|
   c.bind "tcp://0.0.0.0:#{config[:port]}"
-  c.app OpenSprinkler::Web::App
+  c.app app
   c.workers 0
   c.threads 1, 4
-  c.quiet
+  c.quiet unless config[:verbose]
 end
 
 launcher = Puma::Launcher.new(puma_config)
 web_thread = Thread.new { launcher.run }
+
+# Re-register signal handlers after Puma starts (Puma installs its own)
+shutdown = false
+sleep 0.1 # Let Puma's signal handlers register first
+trap('INT') do
+  puts "\nShutting down..."
+  shutdown = true
+end
+trap('TERM') { shutdown = true }
 
 # Run main control loop
 begin
