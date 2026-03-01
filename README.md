@@ -15,14 +15,14 @@ This project reimplements the [OpenSprinkler firmware](https://github.com/OpenSp
 
 ## Requirements
 
-- Ruby 3.2+
+- Ruby 3.1+
 - Raspberry Pi with OSPi board (for production)
 - Bundler
 
 ## Installation
 
 ```bash
-git clone https://github.com/yourusername/opensprinkler-ruby.git
+git clone https://github.com/jeffkowalski/opensprinkler-ruby.git
 cd opensprinkler-ruby
 bundle install
 
@@ -57,6 +57,7 @@ Usage: opensprinkler [options]
     -c, --config FILE        Configuration file
     -H, --hardware TYPE      Hardware type (auto, ospi, demo, mock)
     -f, --foreground         Run in foreground (don't daemonize)
+    -V, --verbose            Verbose request logging
     -v, --version            Show version
     -h, --help               Show this help
 ```
