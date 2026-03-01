@@ -209,6 +209,10 @@ lib/opensprinkler/
 
 MIT License - See LICENSE file for details.
 
+## Upstream Ancestry
+
+Based on [jeffkowalski/OpenSprinkler-Firmware](https://github.com/jeffkowalski/OpenSprinkler-Firmware) commit [`b427d3d`](https://github.com/jeffkowalski/OpenSprinkler-Firmware/commit/b427d3d) (2025-12-30, "Merge upstream/master, preserve InfluxDB"), which tracks [OpenSprinkler/OpenSprinkler-Firmware](https://github.com/OpenSprinkler/OpenSprinkler-Firmware) commit [`05ad383`](https://github.com/OpenSprinkler/OpenSprinkler-Firmware/commit/05ad383) (2025-11-15, PR #381, firmware 2.2.1.4) plus InfluxDB additions.
+
 ## Acknowledgments
 
 Based on the [OpenSprinkler Firmware](https://github.com/OpenSprinkler/OpenSprinkler-Firmware) by Ray Wang.

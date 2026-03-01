@@ -6,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Ruby reimplementation of the OpenSprinkler irrigation controller firmware for Raspberry Pi (OSPi) hardware. Reports as firmware 2.2.1.4 for compatibility with the official UI at https://ui.opensprinkler.com. All config is YAML-based (no binary files).
 
+## Upstream Ancestry
+
+Based on [jeffkowalski/OpenSprinkler-Firmware](https://github.com/jeffkowalski/OpenSprinkler-Firmware) commit `b427d3d` (2025-12-30, "Merge upstream/master, preserve InfluxDB"), which tracks [OpenSprinkler/OpenSprinkler-Firmware](https://github.com/OpenSprinkler/OpenSprinkler-Firmware) commit `05ad383` (2025-11-15, PR #381, firmware 2.2.1.4) plus InfluxDB additions. The C++ source is cloned locally at `/home/jeff/Dropbox/workspace/motes/OpenSprinkler-Firmware` for reference.
+
+**Keep this section and the corresponding README section in sync when rebasing on newer upstream commits.**
+
 ## Commands
 
 ```bash
