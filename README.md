@@ -72,47 +72,14 @@ Usage: opensprinkler [options]
 
 ## Migrating from OpenSprinkler Firmware
 
-If you're migrating from the C++ OpenSprinkler firmware, use the migration tool to convert your binary data files to YAML format.
+To migrate from the C++ OpenSprinkler firmware, use the UI's built-in backup/restore:
 
-### Locate Your Data Files
-
-The C++ firmware stores data in binary `.dat` files, typically in:
-- Raspberry Pi: `/home/pi/OpenSprinkler/data/` or `/var/lib/opensprinkler/`
-- The files are: `iopts.dat`, `sopts.dat`, `stns.dat`, `prog.dat`, `nvcon.dat`
-
-### Run the Migration
-
-```bash
-# Stop the old firmware first
-sudo systemctl stop opensprinkler
-
-# Run migration
-./bin/migrate_data /path/to/old/data ./data
-
-# Example:
-./bin/migrate_data /home/pi/OpenSprinkler/data ./data
-```
-
-### Migration Output
-
-The tool converts:
-
-| Source File | Destination | Contents |
-|-------------|-------------|----------|
-| `iopts.dat` | `iopts.yml` | Integer options (water level, timezone, etc.) |
-| `sopts.dat` | `sopts.yml` | String options (location, weather key, etc.) |
-| `stns.dat` | `stations.yml` | Station names and attributes |
-| `prog.dat` | `programs.yml` | Watering programs (partial - see note) |
-| `nvcon.dat` | `nvdata.yml` | Runtime data (sunrise/sunset times) |
-
-**Note:** Program migration is partial. Complex programs may need manual setup via the UI after migration.
-
-### Post-Migration
-
-1. Review the generated YAML files in `./data/`
-2. Start the Ruby version: `./bin/opensprinkler -d ./data`
-3. Verify settings in the UI
-4. Re-create any programs that didn't migrate correctly
+1. While the old firmware is still running, open https://ui.opensprinkler.com
+2. Go to **Edit Options** → **Backup** to download a backup JSON file
+3. Stop the old firmware: `sudo systemctl stop opensprinkler`
+4. Start the Ruby version: `./bin/opensprinkler -H ospi -d /var/lib/opensprinkler -p 8080`
+5. Open the UI again, connect to the new server, and use **Edit Options** → **Restore** to upload the backup file
+6. Verify your options, stations, and programs are correct
 
 ## systemd Service
 

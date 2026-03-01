@@ -69,9 +69,27 @@ module OpenSprinkler
           data.to_json
         }
 
-        # Root - redirect to UI
+        # Root - serve landing page that loads UI JavaScript
+        # (Must be served locally so the page origin is HTTP, avoiding mixed-content blocks
+        # when the UI JS makes API calls back to this server)
         r.root do
-          r.redirect 'https://ui.opensprinkler.com'
+          js_url = options&.string&.[](:javascript_url) || Constants::Defaults::JAVASCRIPT_URL
+          fw_ver = options&.int&.[](:fw_version) || Constants::FW_VERSION
+          ipas   = options&.int&.[](:ignore_password) || 0
+
+          response['Content-Type'] = 'text/html'
+          <<~HTML
+            <!DOCTYPE html>
+            <html>
+            <head>
+              <meta name="viewport" content="width=device-width,initial-scale=1.0,minimum-scale=1.0,user-scalable=no">
+            </head>
+            <body>
+              <script>var ver=#{fw_ver},ipas=#{ipas};</script>
+              <script src="#{js_url}/home.js"></script>
+            </body>
+            </html>
+          HTML
         end
 
         # ============ Read Endpoints ============
@@ -168,6 +186,8 @@ module OpenSprinkler
         r.get 'co' do
           if verify_password.call
             result = handle_change_options(r.params, options)
+            # Resize station store if ext_boards changed
+            controller.stations.resize(options.int.num_stations)
             json_response.call(result)
           else
             json_response.call(Result::UNAUTHORIZED)
@@ -264,13 +284,50 @@ module OpenSprinkler
           end
         end
 
+        # /sp - Change password
+        r.get 'sp' do
+          if verify_password.call
+            npw = r.params['npw']
+            cpw = r.params['cpw']
+            if npw && cpw
+              if npw == cpw
+                str_opts = options&.string
+                str_opts[:password] = npw
+                options.save if options.respond_to?(:save)
+                json_response.call(Result::SUCCESS)
+              else
+                json_response.call(Result::MISMATCH)
+              end
+            else
+              json_response.call(Result::DATA_MISSING)
+            end
+          else
+            json_response.call(Result::UNAUTHORIZED)
+          end
+        end
+
         # 404 for unknown routes
         r.on do
+          response.status = 404
           json_response.call(Result::PAGE_NOT_FOUND)
         end
       end
 
       private
+
+      # Encode a signed water time (-600..600) to unsigned byte (0..240)
+      # Matches C++ water_time_encode_signed in utils.cpp
+      def water_time_encode(value)
+        value = value.clamp(-600, 600)
+        (value + 600) / 5
+      end
+
+      # Decode unsigned byte (0..240) to signed water time (-600..600)
+      # Matches C++ water_time_decode_signed in utils.cpp
+      def water_time_decode(byte)
+        byte = byte.clamp(0, 240)
+        (byte - 120) * 5
+      end
 
       # Convert options to API format
       def options_to_api(options)
@@ -283,29 +340,28 @@ module OpenSprinkler
           'fwv' => Constants::FW_VERSION,
           'fwm' => Constants::FW_MINOR,
           'tz' => int_opts[:timezone],
-          'ntp' => int_opts[:use_ntp],
-          'dhcp' => int_opts[:use_dhcp],
           'hp0' => int_opts[:httpport_0],
           'hp1' => int_opts[:httpport_1],
           'hwv' => int_opts[:hw_version],
           'ext' => int_opts[:ext_boards],
-          'sdt' => int_opts[:station_delay_time],
+          'sdt' => water_time_decode(int_opts[:station_delay_time]),
           'mas' => int_opts[:master_station],
-          'mton' => int_opts[:master_on_adj],
-          'mtof' => int_opts[:master_off_adj],
+          'mton' => water_time_decode(int_opts[:master_on_adj]),
+          'mtof' => water_time_decode(int_opts[:master_off_adj]),
           'wl' => int_opts[:water_percentage],
           'den' => int_opts[:device_enable],
           'ipas' => int_opts[:ignore_password],
           'devid' => int_opts[:device_id],
-          'con' => int_opts[:lcd_contrast],
-          'lit' => int_opts[:lcd_backlight],
           'dim' => int_opts[:lcd_dimming],
-          'bst' => int_opts[:boost_time],
           'uwt' => int_opts[:use_weather],
+          'ntp1' => int_opts[:ntp_ip1],
+          'ntp2' => int_opts[:ntp_ip2],
+          'ntp3' => int_opts[:ntp_ip3],
+          'ntp4' => int_opts[:ntp_ip4],
           'lg' => int_opts[:enable_logging],
           'mas2' => int_opts[:master_station_2],
-          'mton2' => int_opts[:master_on_adj_2],
-          'mtof2' => int_opts[:master_off_adj_2],
+          'mton2' => water_time_decode(int_opts[:master_on_adj_2]),
+          'mtof2' => water_time_decode(int_opts[:master_off_adj_2]),
           'fpr0' => int_opts[:pulse_rate_0],
           'fpr1' => int_opts[:pulse_rate_1],
           're' => int_opts[:remote_ext_mode],
@@ -318,10 +374,17 @@ module OpenSprinkler
           'sn1of' => int_opts[:sensor1_off_delay],
           'sn2on' => int_opts[:sensor2_on_delay],
           'sn2of' => int_opts[:sensor2_off_delay],
-          'loc' => str_opts&.[](:location) || '',
-          'jsp' => str_opts&.[](:javascript_url) || '',
-          'wsp' => str_opts&.[](:weather_url) || '',
-          'dname' => str_opts&.[](:device_name) || ''
+          'ife' => int_opts[:notif_enable],
+          'ife2' => int_opts[:notif2_enable],
+          'wimod' => int_opts[:wifi_mode],
+          'reset' => int_opts[:reset],
+          'dexp' => -1,
+          'mexp' => Constants::MAX_EXT_BOARDS,
+          'hwt' => 255,
+          'ms' => [
+            int_opts[:master_station], int_opts[:master_on_adj], int_opts[:master_off_adj],
+            int_opts[:master_station_2], int_opts[:master_on_adj_2], int_opts[:master_off_adj_2]
+          ]
         }
       end
 
@@ -362,11 +425,10 @@ module OpenSprinkler
         running = controller.scheduler.queue.active_station_ids(Time.now.to_i)
 
         sn = Array.new(stations.count) { |i| running.include?(i) ? 1 : 0 }
-        nboards = controller.options.int.num_boards
 
         {
           'sn' => sn,
-          'nboards' => nboards
+          'nstations' => stations.count
         }
       end
 
@@ -401,12 +463,9 @@ module OpenSprinkler
           'ignore_rain' => ignore_rain,
           'ignore_sn1' => ignore_sn1,
           'ignore_sn2' => ignore_sn2,
-          'act_relay' => act_relay,
           'stn_dis' => stn_dis,
-          'stn_seq' => stn_seq,
           'stn_spe' => stn_spe,
-          'stn_grp' => stations.group_ids,
-          'stn_type' => stations.map(&:type)
+          'stn_grp' => stations.group_ids
         }
       end
 
@@ -494,19 +553,50 @@ module OpenSprinkler
           'sn1on' => :sensor1_on_delay,
           'sn1of' => :sensor1_off_delay,
           'sn2on' => :sensor2_on_delay,
-          'sn2of' => :sensor2_off_delay
+          'sn2of' => :sensor2_off_delay,
+          'ntp1' => :ntp_ip1,
+          'ntp2' => :ntp_ip2,
+          'ntp3' => :ntp_ip3,
+          'ntp4' => :ntp_ip4,
+          'dns1' => :dns_ip1,
+          'dns2' => :dns_ip2,
+          'dns3' => :dns_ip3,
+          'dns4' => :dns_ip4,
+          'ife' => :notif_enable,
+          'ife2' => :notif2_enable,
+          'subn1' => :subnet_mask1,
+          'subn2' => :subnet_mask2,
+          'subn3' => :subnet_mask3,
+          'subn4' => :subnet_mask4,
+          'fwire' => :force_wired,
+          'laton' => :latch_on_voltage,
+          'latof' => :latch_off_voltage,
+          'imin' => :i_min_threshold,
+          'imax' => :i_max_limit,
+          'tpdv' => :target_pd_voltage
         }
 
         str_mappings = {
           'loc' => :location,
           'jsp' => :javascript_url,
           'wsp' => :weather_url,
-          'dname' => :device_name
+          'dname' => :device_name,
+          'wto' => :weather_opts,
+          'ifkey' => :ifttt_key,
+          'mqtt' => :mqtt_opts,
+          'email' => :email_opts
         }
+
+        # Options that use water_time encoding (signed time in seconds to/from byte)
+        water_time_keys = %w[sdt mton mtof mton2 mtof2]
 
         # Apply integer options
         int_mappings.each do |api_key, opt_key|
-          int_opts[opt_key] = params[api_key].to_i if params.key?(api_key)
+          next unless params.key?(api_key)
+
+          value = params[api_key].to_i
+          value = water_time_encode(value) if water_time_keys.include?(api_key)
+          int_opts[opt_key] = value
         end
 
         # Apply string options
@@ -514,22 +604,35 @@ module OpenSprinkler
           str_opts[opt_key] = params[api_key] if params.key?(api_key)
         end
 
+        # Handle oloc (OSPi sends oloc instead of loc)
+        str_opts[:location] = params['oloc'] if params.key?('oloc')
+
         # Handle password change (npw = new password MD5 hash)
         str_opts[:password] = params['npw'] if params.key?('npw')
 
-        # Handle 'o' parameter - bulk options as comma-separated integers
-        # This is used by some API versions for backwards compatibility
-        if params.key?('o')
-          values = params['o'].split(',').map(&:to_i)
-          # Map positional values to options (subset of common options)
-          option_order = %i[timezone use_ntp use_dhcp ext_boards station_delay_time
-                            master_station master_on_adj master_off_adj water_percentage
-                            device_enable ignore_password]
-          values.each_with_index do |val, idx|
-            break if idx >= option_order.length
+        # Handle indexed oN= params (e.g. o1=28, o15=3)
+        # This is the format the UI restore uses: key = iopt index
+        index_to_name = {}
+        IntegerOptions::DEFINITIONS.each do |name, meta|
+          next if meta[:readonly]
 
-            int_opts[option_order[idx]] = val
+          index_to_name[meta[:index]] = name
+        end
+
+        params.each do |key, val|
+          next unless key.match?(/\Ao\d+\z/)
+
+          idx = key[1..].to_i
+          opt_name = index_to_name[idx]
+          next unless opt_name
+
+          value = val.to_i
+          # Encode water_time options from human-readable seconds to byte
+          if %i[station_delay_time master_on_adj master_off_adj
+                master_on_adj_2 master_off_adj_2].include?(opt_name)
+            value = water_time_encode(value)
           end
+          int_opts[opt_name] = value
         end
 
         options.save if options.respond_to?(:save)
@@ -566,6 +669,12 @@ module OpenSprinkler
           update_program_from_data(program, program_data, params['name'])
         end
 
+        # Date range from separate params (matches C++ firmware behavior)
+        if params.key?('from') && params.key?('to')
+          program.date_range = [params['from'].to_i, params['to'].to_i]
+          program.date_range_enabled = true
+        end
+
         store.save
         Result::SUCCESS
       end
@@ -576,6 +685,13 @@ module OpenSprinkler
 
         pid = params['pid'].to_i
         store = controller.program_store
+
+        if pid == -1
+          # Delete all programs
+          store.clear
+          store.save
+          return Result::SUCCESS
+        end
 
         return Result::OUT_OF_BOUND if pid.negative? || pid >= store.count
 
@@ -615,12 +731,13 @@ module OpenSprinkler
       end
 
       # Handle /cs - change station attributes
-      # Supports various formats for station data
+      # Supports both JSON array format and indexed params (s0=, s1=, m0=, m1=, etc.)
+      # The UI restore sends indexed params; the JSON format is also supported.
       def handle_change_stations(params, controller)
         stations = controller.stations
         num_boards = controller.options.int.num_boards
 
-        # Station names (snames or s[n])
+        # Station names: JSON array (snames=["a","b"]) or indexed (s0=a&s1=b)
         if params.key?('snames')
           begin
             names = JSON.parse(params['snames'])
@@ -631,6 +748,13 @@ module OpenSprinkler
             return Result::FORMAT_ERROR
           end
         end
+        # Indexed station names (s0=Name, s1=Name, ...) — underscores back to spaces
+        params.each do |key, val|
+          next unless key.match?(/\As\d+\z/)
+
+          idx = key[1..].to_i
+          stations[idx]&.name = val.to_s.tr('_', ' ')[0, Constants::STATION_NAME_SIZE] if idx < stations.count
+        end
 
         # Individual station name (sn=name, sid=station_id)
         if params.key?('sn') && params.key?('sid')
@@ -638,77 +762,65 @@ module OpenSprinkler
           stations[sid].name = params['sn'].to_s[0, Constants::STATION_NAME_SIZE] if sid >= 0 && sid < stations.count
         end
 
-        # Master operation bits (masop for board arrays)
+        # Helper: collect indexed params (e.g. m0, m1, ...) into an array
+        collect_indexed = lambda { |prefix|
+          result = []
+          num_boards.times do |i|
+            key = "#{prefix}#{i}"
+            result << params[key].to_i if params.key?(key)
+          end
+          result.empty? ? nil : result
+        }
+
+        # Master operation bits: JSON (masop=[...]) or indexed (m0=, m1=, ...)
+        masop = collect_indexed.call('m')
         if params.key?('masop')
-          begin
-            bits = JSON.parse(params['masop'])
-            bits.each_with_index do |byte, board|
-              stations.set_master1_bits(board, byte) if board < num_boards
-            end
-          rescue JSON::ParserError
-            return Result::FORMAT_ERROR
-          end
+          masop = JSON.parse(params['masop']) rescue (return Result::FORMAT_ERROR)
         end
+        masop&.each_with_index { |byte, board| stations.set_master1_bits(board, byte) if board < num_boards }
 
-        # Master 2 operation bits
+        # Master 2 operation bits: JSON (masop2=[...]) or indexed (n0=, n1=, ...)
+        masop2 = collect_indexed.call('n')
         if params.key?('masop2')
-          begin
-            bits = JSON.parse(params['masop2'])
-            bits.each_with_index do |byte, board|
-              stations.set_master2_bits(board, byte) if board < num_boards
-            end
-          rescue JSON::ParserError
-            return Result::FORMAT_ERROR
-          end
+          masop2 = JSON.parse(params['masop2']) rescue (return Result::FORMAT_ERROR)
         end
+        masop2&.each_with_index { |byte, board| stations.set_master2_bits(board, byte) if board < num_boards }
 
-        # Ignore rain bits
+        # Ignore rain bits: JSON (ignore_rain=[...]) or indexed (i0=, i1=, ...)
+        ignore_rain = collect_indexed.call('i')
         if params.key?('ignore_rain')
-          begin
-            bits = JSON.parse(params['ignore_rain'])
-            bits.each_with_index do |byte, board|
-              stations.set_ignore_rain_bits(board, byte) if board < num_boards
-            end
-          rescue JSON::ParserError
-            return Result::FORMAT_ERROR
-          end
+          ignore_rain = JSON.parse(params['ignore_rain']) rescue (return Result::FORMAT_ERROR)
         end
+        ignore_rain&.each_with_index { |byte, board| stations.set_ignore_rain_bits(board, byte) if board < num_boards }
 
-        # Ignore sensor1 bits
+        # Ignore sensor1 bits: JSON (ignore_sn1=[...]) or indexed (j0=, j1=, ...)
+        ignore_sn1 = collect_indexed.call('j')
         if params.key?('ignore_sn1')
-          begin
-            bits = JSON.parse(params['ignore_sn1'])
-            bits.each_with_index do |byte, board|
-              stations.set_ignore_sensor1_bits(board, byte) if board < num_boards
-            end
-          rescue JSON::ParserError
-            return Result::FORMAT_ERROR
-          end
+          ignore_sn1 = JSON.parse(params['ignore_sn1']) rescue (return Result::FORMAT_ERROR)
         end
+        ignore_sn1&.each_with_index { |byte, board| stations.set_ignore_sensor1_bits(board, byte) if board < num_boards }
 
-        # Ignore sensor2 bits
+        # Ignore sensor2 bits: JSON (ignore_sn2=[...]) or indexed (k0=, k1=, ...)
+        ignore_sn2 = collect_indexed.call('k')
         if params.key?('ignore_sn2')
-          begin
-            bits = JSON.parse(params['ignore_sn2'])
-            bits.each_with_index do |byte, board|
-              stations.set_ignore_sensor2_bits(board, byte) if board < num_boards
-            end
-          rescue JSON::ParserError
-            return Result::FORMAT_ERROR
-          end
+          ignore_sn2 = JSON.parse(params['ignore_sn2']) rescue (return Result::FORMAT_ERROR)
         end
+        ignore_sn2&.each_with_index { |byte, board| stations.set_ignore_sensor2_bits(board, byte) if board < num_boards }
 
-        # Disable bits
+        # Disable bits: JSON (stn_dis=[...]) or indexed (d0=, d1=, ...)
+        stn_dis = collect_indexed.call('d')
         if params.key?('stn_dis')
-          begin
-            bits = JSON.parse(params['stn_dis'])
-            bits.each_with_index do |byte, board|
-              stations.set_disabled_bits(board, byte) if board < num_boards
-            end
-          rescue JSON::ParserError
-            return Result::FORMAT_ERROR
-          end
+          stn_dis = JSON.parse(params['stn_dis']) rescue (return Result::FORMAT_ERROR)
         end
+        stn_dis&.each_with_index { |byte, board| stations.set_disabled_bits(board, byte) if board < num_boards }
+
+        # Special station bits: indexed (p0=, p1=, ...)
+        stn_spe = collect_indexed.call('p')
+        # (stn_spe is informational, store if needed)
+
+        # Sequential bits: indexed (q0=, q1=, ...)
+        stn_seq = collect_indexed.call('q')
+        # (stn_seq is informational, store if needed)
 
         # Group IDs
         if params.key?('stn_grp')

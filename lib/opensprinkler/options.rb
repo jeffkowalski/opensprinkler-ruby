@@ -187,13 +187,18 @@ module OpenSprinkler
       @values[:timezone] = ((hours * 4) + 48).to_i
     end
 
-    # Station delay in seconds (converts from encoded format)
+    # Station delay in seconds (converts from encoded byte format)
+    # Matches C++ water_time_decode_signed: (byte - 120) * 5
     def station_delay_seconds
-      @values[:station_delay_time] - 120
+      byte = @values[:station_delay_time].clamp(0, 240)
+      (byte - 120) * 5
     end
 
+    # Set station delay from seconds (-600..600)
+    # Matches C++ water_time_encode_signed: (seconds + 600) / 5
     def station_delay_seconds=(seconds)
-      @values[:station_delay_time] = seconds + 120
+      seconds = seconds.clamp(-600, 600)
+      @values[:station_delay_time] = (seconds + 600) / 5
     end
 
     # Number of boards (main + expansion)

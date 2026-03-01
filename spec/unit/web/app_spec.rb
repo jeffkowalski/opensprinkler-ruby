@@ -102,6 +102,30 @@ RSpec.describe OpenSprinkler::Web::App do
       expect(json).to have_key('wl')
       expect(json['fwv']).to eq(OpenSprinkler::Constants::FW_VERSION)
     end
+
+    it 'includes dexp, mexp, ms for backup compatibility' do
+      get '/jo', pw: pw
+
+      json = JSON.parse(last_response.body)
+
+      expect(json).to have_key('dexp')
+      expect(json).to have_key('mexp')
+      expect(json).to have_key('ms')
+      expect(json['mexp']).to eq(OpenSprinkler::Constants::MAX_EXT_BOARDS)
+      expect(json['ms']).to be_an(Array)
+      expect(json['ms'].length).to eq(6)
+    end
+
+    it 'decodes water_time options for output' do
+      # Default station_delay_time is 120 (encoded byte)
+      # Decoded: (120 - 120) * 5 = 0 seconds
+      get '/jo', pw: pw
+
+      json = JSON.parse(last_response.body)
+      expect(json['sdt']).to eq(0)
+      expect(json['mton']).to eq(0)
+      expect(json['mtof']).to eq(0)
+    end
   end
 
   describe 'GET /jp (programs)' do
@@ -131,7 +155,7 @@ RSpec.describe OpenSprinkler::Web::App do
       json = JSON.parse(last_response.body)
 
       expect(json).to have_key('sn')
-      expect(json).to have_key('nboards')
+      expect(json).to have_key('nstations')
       expect(json['sn']).to be_an(Array)
     end
   end
@@ -211,7 +235,7 @@ RSpec.describe OpenSprinkler::Web::App do
     it 'returns page not found' do
       get '/unknown', pw: pw
 
-      expect(last_response).to be_ok
+      expect(last_response.status).to eq(404)
       json = JSON.parse(last_response.body)
       expect(json['result']).to eq(32) # PAGE_NOT_FOUND
     end
@@ -276,13 +300,14 @@ RSpec.describe OpenSprinkler::Web::App do
     end
 
     it 'changes integer options' do
-      get '/co', pw: pw, wl: 75, sdt: 10
+      get '/co', pw: pw, wl: 75, sdt: 600
 
       expect(last_response).to be_ok
       json = JSON.parse(last_response.body)
       expect(json['result']).to eq(1)
       expect(int_options[:water_percentage]).to eq(75)
-      expect(int_options[:station_delay_time]).to eq(10)
+      # sdt=600 seconds encodes to byte (600+600)/5 = 240
+      expect(int_options[:station_delay_time]).to eq(240)
     end
 
     it 'changes string options' do
@@ -292,6 +317,34 @@ RSpec.describe OpenSprinkler::Web::App do
       json = JSON.parse(last_response.body)
       expect(json['result']).to eq(1)
       expect(string_options[:location]).to eq('37.7749,-122.4194')
+    end
+
+    it 'handles all backup option keys' do
+      get '/co', pw: pw,
+                 ntp1: 10, ntp2: 20, ntp3: 30, ntp4: 40,
+                 dns1: 8, dns2: 8, dns3: 4, dns4: 4,
+                 ife: 3, ife2: 5,
+                 subn1: 255, subn2: 255, subn3: 255, subn4: 0,
+                 fwire: 1, laton: 50, latof: 60,
+                 imin: 15, imax: 200, tpdv: 80
+
+      expect(last_response).to be_ok
+      json = JSON.parse(last_response.body)
+      expect(json['result']).to eq(1)
+
+      expect(int_options[:ntp_ip1]).to eq(10)
+      expect(int_options[:ntp_ip4]).to eq(40)
+      expect(int_options[:dns_ip1]).to eq(8)
+      expect(int_options[:dns_ip4]).to eq(4)
+      expect(int_options[:notif_enable]).to eq(3)
+      expect(int_options[:notif2_enable]).to eq(5)
+      expect(int_options[:subnet_mask1]).to eq(255)
+      expect(int_options[:force_wired]).to eq(1)
+      expect(int_options[:latch_on_voltage]).to eq(50)
+      expect(int_options[:latch_off_voltage]).to eq(60)
+      expect(int_options[:i_min_threshold]).to eq(15)
+      expect(int_options[:i_max_limit]).to eq(200)
+      expect(int_options[:target_pd_voltage]).to eq(80)
     end
   end
 

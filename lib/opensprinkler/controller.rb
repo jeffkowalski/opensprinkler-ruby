@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require 'json'
 require_relative 'constants'
 require_relative 'options'
 require_relative 'hardware/gpio'
@@ -95,6 +96,18 @@ module OpenSprinkler
 
       # Track last run info for API
       @last_run = [0, 0, 0, 0] # [station, program, duration, end_time]
+
+      # Weather and network state
+      @sunrise_time = 0
+      @sunset_time = 0
+      @external_ip = 0
+      @last_weather_check = 0
+      @last_weather_success = 0
+      @powerup_time = Time.now.to_i
+      @last_reboot_cause = 0
+      @weather_data = {}
+      @weather_error = 0
+      @weather_restricted = 0
     end
 
     # Configure sensors from options
@@ -519,21 +532,46 @@ module OpenSprinkler
 
       ps = @scheduler.station_program_status(current_time)
 
+      str_opts = @options.string
+
       {
         'devt' => current_time.to_i,
         'nbrd' => @options.int.num_boards,
         'en' => @options.int[:device_enable],
-        'rd' => @rain_delayed ? 1 : 0,
-        'rs' => @sensors.rain_sensed? ? 1 : 0,
-        'rdst' => @rain_delay_stop_time,
-        'loc' => @options.string ? @options.string[:location] : '0,0',
-        'sbits' => station_bits_array,
-        'ps' => ps,
-        'lrun' => last_run_info,
         'sn1' => @sensors.sensor1.active ? 1 : 0,
         'sn2' => @sensors.sensor2.active ? 1 : 0,
+        'rd' => @rain_delayed ? 1 : 0,
+        'rdst' => @rain_delay_stop_time,
+        'sunrise' => @sunrise_time || 0,
+        'sunset' => @sunset_time || 0,
+        'eip' => @external_ip || 0,
+        'lwc' => @last_weather_check || 0,
+        'lswc' => @last_weather_success || 0,
+        'lupt' => @powerup_time || 0,
+        'lrbtc' => @last_reboot_cause || 0,
+        'lrun' => last_run_info,
         'pq' => @pause_state ? 1 : 0,
-        'pt' => @pause_timer
+        'pt' => @pause_timer,
+        'nq' => @scheduler.queue.size,
+        'ocs' => 0,
+        'mac' => read_mac_address,
+        'loc' => str_opts ? str_opts[:location] : '0,0',
+        'jsp' => str_opts ? str_opts[:javascript_url] : '',
+        'wsp' => str_opts ? str_opts[:weather_url] : '',
+        'wto' => parse_json_or_empty(str_opts&.[](:weather_opts)),
+        'ifkey' => str_opts ? str_opts[:ifttt_key] : '',
+        'mqtt' => parse_json_or_empty(str_opts&.[](:mqtt_opts)),
+        'email' => parse_json_or_empty(str_opts&.[](:email_opts)),
+        'otc' => parse_json_or_empty(str_opts&.[](:otc_opts)),
+        'otcs' => 0,
+        'wtdata' => @weather_data || {},
+        'wterr' => @weather_error || 0,
+        'wtrestr' => @weather_restricted || 0,
+        'dname' => str_opts ? str_opts[:device_name] : '',
+        'wls' => [],
+        'gpio' => gpio_pin_list,
+        'sbits' => station_bits_array + [0],
+        'ps' => ps
       }
     end
 
@@ -551,6 +589,32 @@ module OpenSprinkler
 
     def last_run_info
       @last_run # [station, program, duration, end_time]
+    end
+
+    def parse_json_or_empty(str)
+      return {} if str.nil? || str.empty?
+
+      JSON.parse(str)
+    rescue JSON::ParserError
+      {}
+    end
+
+    def gpio_pin_list
+      # Free GPIO pins on Raspberry Pi (matches C++ PIN_FREE_LIST for OSPi)
+      [5, 6, 7, 8, 9, 11, 12, 13, 16, 19, 20, 21, 23, 25, 26]
+    end
+
+    def read_mac_address
+      # Read MAC from first available network interface
+      Dir.glob('/sys/class/net/*/address').each do |path|
+        next if path.include?('/lo/')
+
+        mac = File.read(path).strip
+        return mac.upcase if mac != '00:00:00:00:00:00'
+      end
+      '00:00:00:00:00:00'
+    rescue StandardError
+      '00:00:00:00:00:00'
     end
   end
 end
