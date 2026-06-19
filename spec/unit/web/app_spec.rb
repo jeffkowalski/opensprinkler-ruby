@@ -173,6 +173,20 @@ RSpec.describe OpenSprinkler::Web::App do
       expect(json).to have_key('maxlen')
       expect(json['snames']).to be_an(Array)
     end
+
+    it 'includes station attribute bitfields for C++ /jn parity' do
+      get '/jn', pw: pw
+
+      expect(last_response).to be_ok
+      json = JSON.parse(last_response.body)
+
+      expect(json).to have_key('masop')
+      expect(json).to have_key('masop2')
+      expect(json).to have_key('ignore_rain')
+      expect(json).to have_key('stn_dis')
+      expect(json).to have_key('stn_grp')
+      expect(json['masop']).to be_an(Array)
+    end
   end
 
   describe 'GET /je (station special data)' do

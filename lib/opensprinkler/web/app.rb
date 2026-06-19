@@ -130,10 +130,10 @@ module OpenSprinkler
           end
         end
 
-        # /jn - Station names
+        # /jn - Station names + attribute bitfields (matches C++ firmware /jn)
         r.get 'jn' do
           if verify_password.call
-            json_response.call(station_names_to_api(controller))
+            json_response.call(station_names_to_api(controller).merge(station_special_to_api(controller)))
           else
             json_response.call(Result::UNAUTHORIZED)
           end
