@@ -30,6 +30,24 @@ Reference facts (verified): controller is enabled with 4 expansion boards (32 st
 C++ state lives in root-owned binaries `iopts.dat`, `sopts.dat`, `stns.dat`, `prog.dat`,
 `nvcon.dat`, `done.dat`.
 
+## Tools
+
+The validation steps below use [`jq`](https://jqlang.github.io/jq/) to diff JSON config. It is a
+great helper and not installed by default — add it on the controller (one-time):
+
+```bash
+sudo apt-get update && sudo apt-get install -y jq
+```
+
+If you prefer not to install it, the same comparisons can be done with Ruby (already present for the
+firmware), e.g.:
+
+```bash
+ruby -rjson -e 'a=JSON.parse(File.read(ARGV[0]))["snames"]; \
+                b=JSON.parse(File.read(ARGV[1]))["snames"]; \
+                puts(a==b ? "names: IDENTICAL" : "names: DIFFER")' c-jn.json ruby-jn.json
+```
+
 ---
 
 ## Phase 0 — Preserve current state (automated; C++ still running; no impact)
