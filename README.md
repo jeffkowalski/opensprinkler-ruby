@@ -167,9 +167,38 @@ bundle exec ruby bin/opensprinkler -H ospi -d data -p 8080
 The old firmware directory is left in place, so reverting is just swapping the services back:
 
 ```bash
-sudo systemctl stop opensprinkler-home          # or Ctrl-C the foreground run
+sudo systemctl disable --now opensprinkler-home   # stop AND prevent restart on boot
 sudo systemctl enable --now OpenSprinkler
 ```
+
+> Use `disable --now`, not just `stop`: with `Restart=always` and the unit enabled, a plain
+> `stop` would let it restart on the next boot. Disabling breaks any boot-time restart loop.
+
+## Deployment status & known issues
+
+**As of 2026-06-18 the production OSPi runs the C++ firmware (`OpenSprinkler.service`).** The Ruby
+firmware is staged and validated but **not yet in production** due to an unresolved stability issue.
+
+Cutover pre-staging works end to end with zero downtime: backups, exporting the C++ config, importing
+it into a mock Ruby instance (`-H mock -p 8081`), and verifying config parity (station names,
+attributes, programs, options) and the unit suite. The Ruby firmware also runs fine **in mock mode**.
+
+The blocker: when the `opensprinkler-home` service starts with **real hardware** (`-H ospi`, port
+8080) on the Pi Zero 2 W, the board has gone **unreachable/rebooted** — observed twice. Root cause is
+**not yet determined**. A user-space service should not reboot Linux, so the leading suspects are
+**undervoltage** (a current spike at Ruby/Puma startup browning out a marginal supply) or independent
+board instability (SD/thermal). Note the board also rebooted several times unrelated to the firmware
+that day, and a kernel update landed (`6.12.75`→`6.12.93`).
+
+Before retrying the cutover, diagnose on the box (all read-only):
+
+```bash
+journalctl -b -1 --no-pager | tail -50          # logs from the boot that crashed
+dmesg | grep -i "under-voltage\|oom\|throttl"    # power/memory/thermal events
+vcgencmd get_throttled                            # 0x0 = healthy; bit 0/16 = under-voltage now/since boot
+```
+
+Rollback is fast and proven (see [Rollback](#4-rollback)); the C++ `*.dat` state is never modified.
 
 ## systemd Service
 
