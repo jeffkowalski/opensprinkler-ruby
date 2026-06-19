@@ -148,19 +148,23 @@ module OpenSprinkler
       end
     end
 
-    # Save to YAML file
+    # Save to YAML file (merge with existing data to preserve StringOptions)
     def save
       return unless @file_path
 
-      # Only save non-readonly, non-default values
-      data = {}
+      existing = if File.exist?(@file_path)
+                   YAML.load_file(@file_path, permitted_classes: [Symbol]) || {}
+                 else
+                   {}
+                 end
+
       DEFINITIONS.each do |name, meta|
         next if meta[:readonly]
 
-        data[name.to_s] = @values[name]
+        existing[name.to_s] = @values[name]
       end
 
-      File.write(@file_path, data.to_yaml)
+      File.write(@file_path, existing.to_yaml)
     end
 
     # Convert to hash for JSON API
@@ -291,15 +295,21 @@ module OpenSprinkler
       end
     end
 
+    # Save to YAML file (merge with existing data to preserve IntegerOptions)
     def save
       return unless @file_path
 
-      data = {}
+      existing = if File.exist?(@file_path)
+                   YAML.load_file(@file_path, permitted_classes: [Symbol]) || {}
+                 else
+                   {}
+                 end
+
       DEFINITIONS.each_key do |name|
-        data[name.to_s] = @values[name]
+        existing[name.to_s] = @values[name]
       end
 
-      File.write(@file_path, data.to_yaml)
+      File.write(@file_path, existing.to_yaml)
     end
 
     def to_h

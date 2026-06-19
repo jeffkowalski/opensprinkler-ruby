@@ -160,3 +160,33 @@ RSpec.describe OpenSprinkler::StringOptions do
     end
   end
 end
+
+RSpec.describe 'shared options file' do
+  let(:tmpfile) { Tempfile.new(['shared_opts', '.yml']) }
+
+  after { tmpfile.unlink }
+
+  it 'IntegerOptions and StringOptions do not clobber each other' do
+    int_opts = OpenSprinkler::IntegerOptions.new(file_path: tmpfile.path)
+    str_opts = OpenSprinkler::StringOptions.new(file_path: tmpfile.path)
+
+    int_opts[:ext_boards] = 3
+    int_opts[:water_percentage] = 50
+    int_opts.save
+
+    str_opts[:device_name] = 'Test Device'
+    str_opts[:location] = '40.71,-74.01'
+    str_opts.save
+
+    # Reload both from the same file
+    new_int = OpenSprinkler::IntegerOptions.new(file_path: tmpfile.path)
+    new_str = OpenSprinkler::StringOptions.new(file_path: tmpfile.path)
+    new_int.load
+    new_str.load
+
+    expect(new_int[:ext_boards]).to eq(3)
+    expect(new_int[:water_percentage]).to eq(50)
+    expect(new_str[:device_name]).to eq('Test Device')
+    expect(new_str[:location]).to eq('40.71,-74.01')
+  end
+end
