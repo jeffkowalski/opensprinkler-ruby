@@ -184,18 +184,46 @@ it into a mock Ruby instance (`-H mock -p 8081`), and verifying config parity (s
 attributes, programs, options) and the unit suite. The Ruby firmware also runs fine **in mock mode**.
 
 The blocker: when the `opensprinkler-home` service starts with **real hardware** (`-H ospi`, port
-8080) on the Pi Zero 2 W, the board has gone **unreachable/rebooted** — observed twice. Root cause is
-**not yet determined**. A user-space service should not reboot Linux, so the leading suspects are
-**undervoltage** (a current spike at Ruby/Puma startup browning out a marginal supply) or independent
-board instability (SD/thermal). Note the board also rebooted several times unrelated to the firmware
-that day, and a kernel update landed (`6.12.75`→`6.12.93`).
+8080) on the Pi Zero 2 W, the board **hard-resets ~7 seconds after the Ruby process launches**.
+Because the unit is enabled (`Restart=always`), it then auto-restarts on the next boot and crashes
+again — a crash-loop.
 
-Before retrying the cutover, diagnose on the box (all read-only):
+Diagnosis from the persistent journal (2026-06-18):
+
+- The crash boot completed startup normally, `opensprinkler-home` started, then the journal **ends
+  abruptly ~7s later**; the next boot's `dmesg` reports `system.journal corrupted or uncleanly shut
+  down` — confirming a **hard reset**, not a clean shutdown.
+- **Ruled out:** undervoltage (`vcgencmd get_throttled` = `0x0`, not even the "occurred since boot"
+  bit), OOM (no kill logged), kernel panic, thermal/throttle. Temp ~43°C, core ~1.26V — healthy.
+- A hard reset with **zero kernel trace** points to a full lockup (hardware watchdog `bcm2835-wdt`
+  reset) rather than a graceful software failure.
+- **Leading hypothesis — memory/load:** this OSPi runs a *full desktop* Pi OS on 512 MB (`pipewire`,
+  `bluetooth`, `cups`/`cups-browsed`, `ModemManager`, `graphical.target`). The lightweight C++
+  firmware coexists fine, but Ruby + Puma + lgpio on top is a large step; a 512 MB board thrashing
+  into a hard lock (watchdog reset before the OOM-killer can log) fits the ~7s-in, unclean-reset,
+  no-OOM-log evidence. A GPIO/lgpio kernel-driver lockup on kernel `6.12.93` is a secondary
+  possibility (a brief manual GPIO claim survives; the sustained service may not).
+- The Pi has **no RTC** (`fake-hwclock`), so journal/`last` timestamps are unreliable.
+
+Recommended before retrying the cutover:
+
+1. **Slim the box** — disable the desktop/AV stack it doesn't need as a controller (`graphical.target`,
+   `pipewire`, `bluetooth`, `cups`/`cups-browsed`, `ModemManager`) to free RAM. Most likely fix if
+   memory-induced.
+2. **Monitored foreground test** (safe while the unit is *disabled*, so no crash-loop): run
+   `bundle exec ruby bin/opensprinkler -H ospi -f -p 8080` manually while watching `free -m`/`vmstat`
+   over a second SSH session, to see whether memory collapses in those ~7s. This will likely crash the
+   box once, so do it in a maintenance window with the recovery-on-reboot step ready.
+3. Optionally shrink Puma's footprint (single worker/thread).
+
+Useful read-only diagnostics on the box:
 
 ```bash
-journalctl -b -1 --no-pager | tail -50          # logs from the boot that crashed
-dmesg | grep -i "under-voltage\|oom\|throttl"    # power/memory/thermal events
-vcgencmd get_throttled                            # 0x0 = healthy; bit 0/16 = under-voltage now/since boot
+journalctl --list-boots                           # persistent journal; map boots (no RTC: times unreliable)
+journalctl -u opensprinkler-home -o short-precise # when Ruby started; was there any output before death?
+journalctl _BOOT_ID=<crash-boot> | tail           # how that boot ended (abrupt = hard reset)
+vcgencmd get_throttled                            # 0x0 = healthy; bit0/16 = under-voltage now/since boot
+free -m; vmstat 1                                  # memory headroom during a controlled start
 ```
 
 Rollback is fast and proven (see [Rollback](#4-rollback)); the C++ `*.dat` state is never modified.
