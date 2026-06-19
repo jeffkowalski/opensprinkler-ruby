@@ -1,0 +1,34 @@
+[Unit]
+Description=OpenSprinkler (Ruby firmware)
+Wants=network-online.target
+After=network.target network-online.target
+# Drives the same GPIO lines and port 8080 as the C++ OpenSprinkler.service.
+# Only one may run; Conflicts= makes systemd stop the other when this starts.
+Conflicts=OpenSprinkler.service
+
+[Service]
+Type=simple
+# Run as jeff (owns the checkout/data); jeff is in the gpio group, which grants
+# /dev/gpiochip0 access without a login session (services get no logind ACL).
+User=jeff
+Group=jeff
+SupplementaryGroups=gpio
+WorkingDirectory=/home/jeff/opensprinkler-ruby
+
+# Ruby 4.0.1 is installed via rbenv under jeff's home and is NOT on the default
+# (non-login) PATH, so set the rbenv environment explicitly and invoke the
+# rbenv bundle shim. `bundle exec` picks up the :pi group (lgpio) from
+# .bundle/config in WorkingDirectory.
+Environment=HOME=/home/jeff
+Environment=RBENV_ROOT=/home/jeff/.rbenv
+Environment=PATH=/home/jeff/.rbenv/shims:/home/jeff/.rbenv/bin:/usr/local/bin:/usr/bin:/bin
+ExecStart=/home/jeff/.rbenv/shims/bundle exec ruby bin/opensprinkler -d data -p 8080 -H ospi
+
+Restart=always
+RestartSec=30
+StandardOutput=journal
+StandardError=journal
+StandardInput=null
+
+[Install]
+WantedBy=multi-user.target

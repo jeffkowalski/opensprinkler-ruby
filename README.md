@@ -15,9 +15,10 @@ This project reimplements the [OpenSprinkler firmware](https://github.com/OpenSp
 
 ## Requirements
 
-- Ruby 3.1+
+- Ruby 3.1+ (the OSPi target runs Ruby 4.0.1 via rbenv — see [Installing Ruby via rbenv](#installing-ruby-via-rbenv-raspberry-pi))
 - Raspberry Pi with OSPi board (for production)
 - Bundler
+- `liblgpio` system library on the Pi (for the `lgpio` gem's native extension)
 
 ## Installation
 
@@ -28,6 +29,47 @@ bundle install
 
 # For Raspberry Pi with GPIO support:
 bundle install --with=pi
+```
+
+### Installing Ruby via rbenv (Raspberry Pi)
+
+The OSPi target does not ship a new enough Ruby, so build it with [rbenv](https://github.com/rbenv/rbenv) + [ruby-build](https://github.com/rbenv/ruby-build). **The board is RAM-constrained (see [Target Device & Limitations](#target-device--limitations)), so compile single-threaded** — a parallel build exhausts memory and hard-crashes the Pi:
+
+```bash
+# rbenv + ruby-build (one-time)
+git clone https://github.com/rbenv/rbenv.git ~/.rbenv
+git clone https://github.com/rbenv/ruby-build.git ~/.rbenv/plugins/ruby-build
+# add to your shell profile (~/.bashrc):
+#   export PATH="$HOME/.rbenv/bin:$HOME/.rbenv/shims:$PATH"
+#   eval "$(rbenv init - bash)"
+
+# Build Ruby with a single make job so it doesn't OOM the Pi (this is slow):
+MAKE_OPTS="-j1" rbenv install 4.0.1
+rbenv global 4.0.1
+ruby -v   # => ruby 4.0.1
+```
+
+> rbenv is **not** on the PATH of non-login/non-interactive shells (systemd units, `ssh host 'cmd'`). Load it explicitly when needed:
+> `export PATH="$HOME/.rbenv/bin:$HOME/.rbenv/shims:$PATH"; eval "$(rbenv init - bash)"`.
+> The provided systemd unit sets `RBENV_ROOT`/`PATH` itself.
+
+### Installing gems on the OSPi
+
+`liblgpio` must be present (it is if the C++ firmware ran — that firmware links the same `lg` library). Compile native extensions single-threaded so the build can't OOM the board:
+
+```bash
+bundle config set --local with pi      # include the lgpio gem
+bundle config set --local jobs 1       # one gem at a time
+MAKEFLAGS="-j1" bundle install         # one make job per gem
+```
+
+**If a build is interrupted (e.g. the Pi crashes mid-compile),** the gem store can be left with truncated `.gem`/`.gemspec` files, and a later `bundle install` fails with `Gem::Package::FormatError: package metadata is missing` or warns `... isn't a Gem::Specification (NilClass instead)`. Recover by clearing the (re-downloadable) cache and the zero-byte spec stubs, then reinstalling:
+
+```bash
+GEMDIR="$(ruby -e 'print Gem.dir')"
+rm -f "$GEMDIR"/cache/*.gem
+find "$GEMDIR"/specifications -name '*.gemspec' -size -1k -delete
+MAKEFLAGS="-j1" bundle install
 ```
 
 ## Quick Start
@@ -71,41 +113,81 @@ Usage: opensprinkler [options]
 | `demo` | Demo mode with simulated stations |
 | `mock` | Mock hardware for testing |
 
-## Migrating from OpenSprinkler Firmware
+## Target Device & Limitations
 
-To migrate from the C++ OpenSprinkler firmware, use the UI's built-in backup/restore:
+The reference deployment runs on a **Raspberry Pi Zero 2 W** driving the OSPi controller board. It is intentionally modest:
 
-1. While the old firmware is still running, open https://ui.opensprinkler.com
-2. Go to **Edit Options** → **Backup** to download a backup JSON file
-3. Stop the old firmware: `sudo systemctl stop opensprinkler`
-4. Start the Ruby version: `./bin/opensprinkler -H ospi -d /var/lib/opensprinkler -p 8080`
-5. Open the UI again, connect to the new server, and use **Edit Options** → **Restore** to upload the backup file
-6. Verify your options, stations, and programs are correct
+| Property | Value |
+|----------|-------|
+| SoC | Broadcom BCM2837 (quad-core Cortex-A53, ARMv8) |
+| RAM | 512 MB (no swap by default) |
+| GPIO chip | `/dev/gpiochip0` (the `bcm2712`/Pi 5 `gpiochip4` path is auto-detected but not used here) |
+| Network | Wi-Fi only (2.4 GHz) |
+| OS | Raspberry Pi OS (Debian Bookworm), 64-bit |
+
+Practical consequences:
+
+- **Low RAM** — compiling Ruby or native gems with default parallelism exhausts memory and **hard-crashes/reboots the board**. Always build single-threaded (`MAKE_OPTS="-j1"`, `MAKEFLAGS="-j1"`, `bundle config set --local jobs 1`); native builds take minutes per gem.
+- **Wi-Fi only** — it can briefly drop off the network under heavy load or after a crash, then self-recovers in a few minutes. "Reachable by ping" does not mean "shell is responsive yet" while it is still recovering.
+- **GPIO access** — `/dev/gpiochip0` is `root:gpio`, mode `0660`. A non-root service user must be in the `gpio` group; the logind ACL that grants interactive SSH sessions does **not** apply to background services, so group membership is required.
+
+## Cutover from the C++ firmware
+
+The C++ OpenSprinkler firmware and this Ruby firmware **cannot run at the same time** — they claim the same GPIO lines (shift-register pins 4/17/22/27) and bind the same port (8080). Cut over deliberately.
+
+### 1. Back up configuration (while the old firmware still runs)
+
+There is no binary-to-YAML file converter; migrate via the UI's JSON backup:
+
+1. Open https://ui.opensprinkler.com and connect to the running controller (`http://<pi>:8080`).
+2. **Edit Options → Backup** to download a backup JSON file.
+
+### 2. Stop and disable the old firmware
+
+On this device the C++ firmware runs as the systemd unit **`OpenSprinkler.service`** (capitalized — not `opensprinkler`):
+
+```bash
+sudo systemctl stop OpenSprinkler
+sudo systemctl disable OpenSprinkler            # don't let it restart on boot
+gpioinfo | grep -E 'line +(4|17|22|27):'        # lines should now read "unused"
+```
+
+### 3. Start the Ruby firmware and restore data
+
+Verify it directly first (foreground):
+
+```bash
+bundle exec ruby bin/opensprinkler -H ospi -d data -p 8080
+```
+
+…or install it as a service (see [systemd Service](#systemd-service)). Then reopen the UI, connect to the new server, and use **Edit Options → Restore** to upload the backup JSON. Confirm options, stations, and programs are correct.
+
+### 4. Rollback
+
+The old firmware directory is left in place, so reverting is just swapping the services back:
+
+```bash
+sudo systemctl stop opensprinkler-home          # or Ctrl-C the foreground run
+sudo systemctl enable --now OpenSprinkler
+```
 
 ## systemd Service
 
-Install as a system service:
+The repo ships `systemd/opensprinkler-home.service`, configured for the reference deployment: it runs as user **`jeff`** (a member of the `gpio` group) from `/home/jeff/opensprinkler-ruby`, invokes the rbenv Ruby via its shims (setting `RBENV_ROOT`/`PATH`), and serves on port 8080. It declares `Conflicts=OpenSprinkler.service`, so starting it makes systemd stop the C++ firmware automatically.
 
 ```bash
-# Create user
-sudo useradd -r -s /bin/false opensprinkler
-sudo usermod -aG gpio opensprinkler
-
-# Create directories
-sudo mkdir -p /opt/opensprinkler /var/lib/opensprinkler
-sudo cp -r . /opt/opensprinkler/
-sudo chown -R opensprinkler:gpio /opt/opensprinkler /var/lib/opensprinkler
-
-# Install service
-sudo cp systemd/opensprinkler.service /etc/systemd/system/
+sudo cp systemd/opensprinkler-home.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable opensprinkler
-sudo systemctl start opensprinkler
 
-# Check status
-sudo systemctl status opensprinkler
-sudo journalctl -u opensprinkler -f
+# stop/disable the old C++ firmware first (see Cutover)
+sudo systemctl disable --now OpenSprinkler
+
+sudo systemctl enable --now opensprinkler-home
+sudo systemctl status opensprinkler-home
+sudo journalctl -u opensprinkler-home -f
 ```
+
+Adjust `User=`, `WorkingDirectory=`, `RBENV_ROOT=`, the `PATH=` shims, and the data dir (`-d data`, relative to `WorkingDirectory`) in the unit if your paths differ. The unit runs as a non-root user and depends on that user being in the `gpio` group (see [Target Device & Limitations](#target-device--limitations)).
 
 ## Configuration Files
 
