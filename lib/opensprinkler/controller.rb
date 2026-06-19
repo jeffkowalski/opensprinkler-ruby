@@ -40,7 +40,16 @@ module OpenSprinkler
 
       # Initialize hardware
       @shift_register = Hardware::ShiftRegister.new(gpio: @gpio)
-      @sensors = Hardware::Sensors.new(gpio: @gpio)
+      @gpio_ok = false
+      begin
+        @shift_register.setup
+        @sensors = Hardware::Sensors.new(gpio: @gpio)
+        @gpio_ok = true
+      rescue StandardError => e
+        warn "[Controller] GPIO init failed: #{e.class}: #{e.message}"
+        warn "[Controller] Running without hardware control"
+        @sensors = Hardware::Sensors.new(gpio: Hardware::MockGPIO.new)
+      end
 
       # Initialize stations
       num_stations = @options.int.num_stations
@@ -198,7 +207,7 @@ module OpenSprinkler
     ensure
       # Turn off all stations on exit
       @shift_register.clear
-      @shift_register.apply(enabled: true)
+      apply_shift_register(enabled: true)
     end
 
     # ========== Rain Delay ==========
@@ -332,7 +341,7 @@ module OpenSprinkler
       log_station_changes(current_time)
 
       # Apply to hardware
-      @shift_register.apply(enabled: @options.int[:device_enable] != 0)
+      apply_shift_register(enabled: @options.int[:device_enable] != 0)
     end
 
     def log_station_changes(current_time)
@@ -472,7 +481,7 @@ module OpenSprinkler
     def stop_all_stations(current_time = Time.now)
       @scheduler.stop_all(current_time)
       @shift_register.clear
-      @shift_register.apply(enabled: true)
+      apply_shift_register(enabled: true)
     end
 
     # Run-once program
@@ -602,6 +611,13 @@ module OpenSprinkler
     def gpio_pin_list
       # Free GPIO pins on Raspberry Pi (matches C++ PIN_FREE_LIST for OSPi)
       [5, 6, 7, 8, 9, 11, 12, 13, 16, 19, 20, 21, 23, 25, 26]
+    end
+
+    def apply_shift_register(enabled:)
+      @shift_register.apply(enabled: enabled)
+    rescue StandardError => e
+      warn "[Controller] GPIO apply failed: #{e.class}: #{e.message}" unless @gpio_apply_warned
+      @gpio_apply_warned = true
     end
 
     def read_mac_address

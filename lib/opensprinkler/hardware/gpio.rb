@@ -69,11 +69,11 @@ module OpenSprinkler
 
         case mode
         when INPUT
-          LGPIO.gpio_claim_input(@handle, pin)
+          LGPIO.gpio_claim_input(@handle, pin, 0)
         when INPUT_PULLUP
           LGPIO.gpio_claim_input(@handle, pin, LGPIO::SET_PULL_UP)
         when OUTPUT
-          LGPIO.gpio_claim_output(@handle, pin, LGPIO::SET_LOW)
+          LGPIO.gpio_claim_output(@handle, pin, 0, LGPIO::LOW)
         else
           raise ArgumentError, "Invalid pin mode: #{mode}"
         end
