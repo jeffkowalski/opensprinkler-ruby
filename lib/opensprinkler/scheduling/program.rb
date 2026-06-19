@@ -137,7 +137,7 @@ module OpenSprinkler
           'date_range_enabled' => @date_range_enabled,
           'days' => @days,
           'starttimes' => @starttimes,
-          'durations' => @durations.take_while.with_index { |d, i| d.positive? || i < 8 },
+          'durations' => @durations.first([(@durations.rindex(&:positive?) || 0) + 1, 8].max),
           'date_range' => @date_range
         }
       end
